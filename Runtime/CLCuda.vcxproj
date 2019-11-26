@@ -10,6 +10,19 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="cl_device_assist.cuh" />
+    <ClInclude Include="cl_host.h" />
+    <ClInclude Include="cl_host_constants.h" />
+    <ClInclude Include="cl_interface_shared.cuh" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="cl_host.cu" />
+    <CudaCompile Include="cuda_vectoradd_program.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{2D07A647-2EFF-4064-A931-271AA8E70CB2}</ProjectGuid>
     <RootNamespace>CLCuda</RootNamespace>
@@ -77,9 +90,6 @@
       <TargetMachinePlatform>64</TargetMachinePlatform>
     </CudaCompile>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <CudaCompile Include="kernel.cu" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\CUDA 10.2.targets" />
