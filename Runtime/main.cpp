@@ -17,6 +17,28 @@ void chk(cl_int status, const char* cmd) {
 	}
 }
 
+void read_file(const char* path, char** values, size_t* size) {
+	FILE* f = fopen(path, "rb");
+	if (!f) {
+		std::cerr << "Error reading file" << std::endl;
+		abort();
+	}
+	fseek(f, 0, SEEK_END);
+	*size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	char* buf = (char*)malloc(*size);
+	*values = buf;
+	size_t remaining_size = *size;
+	while (remaining_size > 0) {
+		size_t read = fread(buf, 1, remaining_size, f);
+
+		remaining_size -= read;
+		buf += read;
+	}
+	fclose(f);
+}
+
 void execute(int* A, int* B, int* C, const int* elements) {
 	// This code executes on the OpenCL host    
 	// Compute the size of the data 
@@ -95,9 +117,9 @@ void execute(int* A, int* B, int* C, const int* elements) {
 		0, datasize, B, 0, NULL, NULL);
 
 	// Create a program with source code
-	size_t binary_size = sizeof(int);
-	int binary_value = 1;
-	void* binary_values = &binary_value;
+	char *binary_values;
+	size_t binary_size;
+	read_file("vecadd.txt", &binary_values, &binary_size);
 	cl_program program = clCreateProgramWithBinary(context,
 		1,
 		devices,
@@ -201,6 +223,7 @@ int main() {
 	}
 	execute(A, B, C, &elements);
 
+	std::cout << "Done" << std::endl;
 	for (int i = 0; i < elements; i++) {
 		if (C[i] != i + (i * 10)) {
 			std::cout << "Wrong result at " << i << std::endl;

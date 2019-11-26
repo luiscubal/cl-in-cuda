@@ -4,14 +4,16 @@
 #include <cuda_runtime_api.h>
 #include <cuda.h>
 #include <iostream>
-#include "cl_interface_shared.cuh"
+#include <string>
+#include <sstream>
+#include "cpptoml.hpp"
+#include "cl_interface_shared.h"
 
 #define HAS_FLAG(bitfield, flag) (bitfield & flag)
 #define HARDCODED_PLATFORM_ID 1
 #define HARDCODED_DEVICE_ID 2
 #define HARDCODED_CONTEXT_ID 3
 #define HARDCODED_COMMAND_QUEUE_ID 4
-#define HARDCODED_PROGRAM_ID 5
 
 cl_int clGetPlatformIDs(
 	cl_uint num_entries,
@@ -343,6 +345,75 @@ cl_int clEnqueueWriteBuffer(
 	return CL_SUCCESS;
 }
 
+static cl_int buildKernel(
+	cpptoml::table& kernel_toml,
+	cl_kernel storage
+) {
+	cl_int errcode = CL_SUCCESS;
+
+	auto name = kernel_toml.get_as<std::string>("name");
+	auto symbol_name = kernel_toml.get_as<std::string>("symbol_name");
+
+	if (!name || !symbol_name) {
+		return CL_INVALID_BINARY;
+	}
+
+	size_t name_length = name->length();
+	storage->name = (char*)malloc(name_length + 1);
+	size_t symbol_name_length = symbol_name->length();
+	storage->symbol_name = (char*)malloc(symbol_name_length + 1);
+
+	storage->launcher = get_launcher_by_name(symbol_name->c_str());
+	if (storage->launcher == nullptr) {
+		return CL_INVALID_BINARY;
+	}
+
+	storage->num_args = 0;
+
+	if (!storage->name || !storage->symbol_name) {
+		errcode = CL_OUT_OF_HOST_MEMORY;
+	}
+	else {
+		strcpy(storage->name, name->c_str());
+		strcpy(storage->symbol_name, symbol_name->c_str());
+
+		auto args_toml = kernel_toml.get_table_array("args");
+
+		if (args_toml) {
+			auto args_length = args_toml->end() - args_toml->begin();
+			storage->arg_data = (void**)calloc(args_length, sizeof(void*));
+			storage->arg_descriptors = (arg_descriptor*)calloc(args_length, sizeof(struct arg_descriptor));
+			if (storage->arg_data == nullptr || storage->arg_descriptors == nullptr) {
+				errcode = CL_OUT_OF_HOST_MEMORY;
+			}
+			for (const auto& arg : *args_toml) {
+				auto type = arg->get_as<std::string>("type");
+				if (!type) {
+					errcode = CL_INVALID_BINARY;
+					break;
+				}
+				if (*type == "global_ptr") {
+					storage->arg_descriptors[storage->num_args].arg_type = ARG_TYPE_GLOBAL_MEM;
+				}
+				else {
+					std::cerr << "Not implemented" << std::endl;
+					errcode = CL_INVALID_BINARY;
+					break;
+				}
+				++storage->num_args;
+			}
+		}
+	}
+
+	if (errcode != CL_SUCCESS) {
+		free(storage->name);
+		free(storage->symbol_name);
+		free(storage->arg_data);
+		free(storage->arg_descriptors);
+	}
+	return errcode;
+}
+
 cl_program clCreateProgramWithBinary(
 	cl_context context,
 	cl_uint num_devices,
@@ -379,18 +450,94 @@ cl_program clCreateProgramWithBinary(
 		*errcode_ret = CL_INVALID_DEVICE;
 		return 0;
 	}
-	if (lengths[0] != sizeof(int)) {
+
+	std::string string((const char*)*binaries, *lengths);
+	std::istringstream stream(string);
+	cpptoml::parser parser(stream);
+	std::shared_ptr<cpptoml::table> obj;
+	try {
+		obj = parser.parse();
+	}
+	catch (cpptoml::parse_exception exc) {
 		*errcode_ret = CL_INVALID_BINARY;
 		return 0;
 	}
-	int value = *(int*)binaries[0];
-	if (value != 1) {
+	auto program_toml = obj->get_table("program");
+	if (!program_toml) {
 		*errcode_ret = CL_INVALID_BINARY;
 		return 0;
 	}
 
-	*errcode_ret = CL_SUCCESS;
-	return HARDCODED_PROGRAM_ID;
+	auto build_log = program_toml->get_as<std::string>("build_log");
+	auto build_options = program_toml->get_as<std::string>("build_options");
+	auto kernels_toml = obj->get_table_array("kernels");
+	if (!build_log || !build_options) {
+		*errcode_ret = CL_INVALID_BINARY;
+		return 0;
+	}
+
+	cl_program program = nullptr;
+
+	program = (cl_program)malloc(sizeof(*program));
+	if (program == nullptr) {
+		*errcode_ret = CL_OUT_OF_HOST_MEMORY;
+	}
+	else {
+		size_t build_log_length = build_log->length();
+		program->build_log = (char*)malloc(build_log_length + 1);
+		size_t build_options_length = build_options->length();
+		program->build_options = (char*)malloc(build_options_length + 1);
+		program->kernels = nullptr;
+		program->num_kernels = 0;
+
+		if (program->build_log == nullptr || program->build_options == nullptr) {
+			*errcode_ret = CL_OUT_OF_HOST_MEMORY;
+		}
+		else {
+			strcpy(program->build_log, build_log->c_str());
+			strcpy(program->build_options, build_options->c_str());
+
+			if (kernels_toml != nullptr) {
+				auto kernels_length = kernels_toml->end() - kernels_toml->begin();
+				program->kernels = (cl_kernel) calloc(kernels_length, sizeof(struct _cl_kernel));
+				if (program->kernels == nullptr) {
+					*errcode_ret = CL_OUT_OF_HOST_MEMORY;
+				}
+				else {
+					*errcode_ret = CL_SUCCESS;
+					for (const auto& kernel : *kernels_toml) {
+						cl_int err = buildKernel(*kernel, program->kernels + program->num_kernels);
+
+						if (err != CL_SUCCESS) {
+							*errcode_ret = err;
+							break;
+						}
+						++program->num_kernels;
+					}
+				}
+			}
+
+			if (*errcode_ret == CL_SUCCESS) {
+				// Do not free fields
+				return program;
+			}
+		}
+	}
+
+	// free(nullptr) is a no-op
+	if (program != nullptr) {
+		free(program->build_log);
+		free(program->build_options);
+		for (int i = 0; i < program->num_kernels; i++) {
+			free(program->kernels[i].name);
+			free(program->kernels[i].symbol_name);
+			free(program->kernels[i].arg_data);
+		}
+		free(program->kernels);
+
+	}
+	free(program);
+	return nullptr;
 }
 
 cl_int clBuildProgram(
@@ -401,7 +548,7 @@ cl_int clBuildProgram(
 	void(*pfn_notify)(cl_program, void *user_data),
 	void *user_data
 ) {
-	if (program != HARDCODED_PROGRAM_ID) {
+	if (program == nullptr) {
 		return CL_INVALID_PROGRAM;
 	}
 	if (num_devices == 0 && device_list != nullptr) {
@@ -416,8 +563,6 @@ cl_int clBuildProgram(
 
 	return CL_SUCCESS;
 }
-
-extern program_descriptor vectoradd_program;
 
 static cl_int getBuildInfoFromString(
 	size_t param_value_size,
@@ -446,12 +591,13 @@ cl_int clGetProgramBuildInfo(
 	void *param_value,
 	size_t *param_value_size_ret
 ) {
-	if (program != HARDCODED_PROGRAM_ID) {
+	if (program == nullptr) {
 		return CL_INVALID_PROGRAM;
 	}
 	if (device != HARDCODED_DEVICE_ID) {
 		return CL_INVALID_DEVICE;
 	}
+
 	switch (param_name) {
 	case CL_PROGRAM_BUILD_STATUS:
 		if (param_value_size < sizeof(cl_build_status) && param_value != nullptr) {
@@ -465,9 +611,9 @@ cl_int clGetProgramBuildInfo(
 		}
 		return CL_SUCCESS;
 	case CL_PROGRAM_BUILD_OPTIONS:
-		return getBuildInfoFromString(param_value_size, param_value, param_value_size_ret, vectoradd_program.build_options);
+		return getBuildInfoFromString(param_value_size, param_value, param_value_size_ret, program->build_options);
 	case CL_PROGRAM_BUILD_LOG:
-		return getBuildInfoFromString(param_value_size, param_value, param_value_size_ret, vectoradd_program.build_log);
+		return getBuildInfoFromString(param_value_size, param_value, param_value_size_ret, program->build_log);
 	default:
 		return CL_INVALID_VALUE;
 	}
@@ -478,18 +624,18 @@ cl_kernel clCreateKernel(
 	const char *kernel_name,
 	cl_int *errcode_ret
 ) {
-	if (program != HARDCODED_PROGRAM_ID) {
+	if (program == nullptr) {
 		*errcode_ret = CL_INVALID_PROGRAM;
-		return 0;
+		return nullptr;
 	}
 
 	if (kernel_name == nullptr) {
 		*errcode_ret = CL_INVALID_VALUE;
-		return 0;
+		return nullptr;
 	}
 
-	for (int kernel_id = 0; kernel_id < vectoradd_program.num_kernels; kernel_id++) {
-		kernel_descriptor* kdesc = &(vectoradd_program.kernels[kernel_id]);
+	for (int kernel_id = 0; kernel_id < program->num_kernels; kernel_id++) {
+		cl_kernel kdesc = &(program->kernels[kernel_id]);
 		if (strcmp(kdesc->name, kernel_name) == 0) {
 			if (kdesc->arg_data == 0) {
 				kdesc->arg_data = (void**)malloc(sizeof(void*) * kdesc->num_args);
@@ -508,26 +654,26 @@ cl_kernel clCreateKernel(
 							return 0;
 						}
 						break;
-					case ARG_TYPE_MEM_OBJ:
+					case ARG_TYPE_GLOBAL_MEM:
 						kdesc->arg_data[i] = nullptr;
 						break;
 					}
 				}
 			}
 			*errcode_ret = CL_SUCCESS;
-			return (cl_kernel)(kernel_id + 1);
+			return kdesc;
 		}
 	}
 
 	*errcode_ret = CL_INVALID_KERNEL_NAME;
-	return 0;
+	return nullptr;
 }
 
 cl_int clReleaseKernel(
 	cl_kernel kernel
 ) {
 	// FIXME Leaking the arg_data
-	if (kernel == 0 || kernel > vectoradd_program.num_kernels) {
+	if (kernel == nullptr) {
 		return CL_INVALID_KERNEL;
 	}
 	return CL_SUCCESS;
@@ -536,9 +682,12 @@ cl_int clReleaseKernel(
 cl_int clReleaseProgram(
 	cl_program program
 ) {
-	if (program != HARDCODED_PROGRAM_ID) {
+	if (program == 0) {
 		return CL_INVALID_PROGRAM;
 	}
+	free((void*) program->build_log);
+	free((void*) program->build_options);
+	free(program);
 	return CL_SUCCESS;
 }
 
@@ -548,22 +697,21 @@ cl_int clSetKernelArg(
 	size_t arg_size,
 	const void *arg_value
 ) {
-	if (kernel == 0 || kernel > vectoradd_program.num_kernels) {
+	if (kernel == nullptr) {
 		return CL_INVALID_KERNEL;
 	}
 	
-	kernel_descriptor* kdesc = &(vectoradd_program.kernels[kernel - 1]);
-	if (arg_index >= kdesc->num_args) {
+	if (arg_index >= kernel->num_args) {
 		return CL_INVALID_ARG_INDEX;
 	}
 
-	arg_descriptor* adesc = &(kdesc->arg_descriptors[arg_index]);
+	arg_descriptor* adesc = &(kernel->arg_descriptors[arg_index]);
 	switch (adesc->arg_type) {
 	case ARG_TYPE_SCALAR:
 		if (arg_size != adesc->data.scalar_size) {
 			return CL_INVALID_ARG_SIZE;
 		}
-		memcpy(((void**)kdesc->arg_data)[arg_index], arg_value, arg_size);
+		memcpy(((void**)kernel->arg_data)[arg_index], arg_value, arg_size);
 		return CL_SUCCESS;
 	case ARG_TYPE_LOCAL_MEM:
 		if (arg_value != nullptr) {
@@ -572,16 +720,16 @@ cl_int clSetKernelArg(
 		if (arg_size == 0) {
 			return CL_INVALID_ARG_SIZE;
 		}
-		memcpy(((void**)kdesc->arg_data)[arg_index], &arg_size, sizeof(size_t));
+		memcpy(((void**)kernel->arg_data)[arg_index], &arg_size, sizeof(size_t));
 		return CL_SUCCESS;
-	case ARG_TYPE_MEM_OBJ:
+	case ARG_TYPE_GLOBAL_MEM:
 		if (arg_value == nullptr) {
 			return CL_INVALID_ARG_VALUE;
 		}
 		if (arg_size != sizeof(cl_mem)) {
 			return CL_INVALID_ARG_SIZE;
 		}
-		kdesc->arg_data[arg_index] = (*(cl_mem*)arg_value)->ptr;
+		kernel->arg_data[arg_index] = (*(cl_mem*)arg_value)->ptr;
 		return CL_SUCCESS;
 	}
 	abort();
@@ -601,7 +749,7 @@ cl_int clEnqueueNDRangeKernel(
 	if (command_queue != HARDCODED_COMMAND_QUEUE_ID) {
 		return CL_INVALID_COMMAND_QUEUE;
 	}
-	if (kernel == 0 || kernel > vectoradd_program.num_kernels) {
+	if (kernel == nullptr) {
 		return CL_INVALID_KERNEL;
 	}
 	if (work_dim == 0 || work_dim > 3) {
@@ -635,17 +783,16 @@ cl_int clEnqueueNDRangeKernel(
 		num_groups[i] = size / local_size;
 	}
 
-	kernel_descriptor* kdesc = &(vectoradd_program.kernels[kernel - 1]);
-	kdesc->gridX = num_groups[0];
-	kdesc->gridY = num_groups[1];
-	kdesc->gridZ = num_groups[2];
-	kdesc->localX = local_sizes[0];
-	kdesc->localY = local_sizes[1];
-	kdesc->localZ = local_sizes[2];
-	kdesc->totalX = total_sizes[0];
-	kdesc->totalY = total_sizes[1];
-	kdesc->totalZ = total_sizes[2];
-	kdesc->launcher(kdesc);
+	kernel->gridX = num_groups[0];
+	kernel->gridY = num_groups[1];
+	kernel->gridZ = num_groups[2];
+	kernel->localX = local_sizes[0];
+	kernel->localY = local_sizes[1];
+	kernel->localZ = local_sizes[2];
+	kernel->totalX = total_sizes[0];
+	kernel->totalY = total_sizes[1];
+	kernel->totalZ = total_sizes[2];
+	kernel->launcher(kernel);
 	cudaDeviceSynchronize();
 
 	return CL_SUCCESS;

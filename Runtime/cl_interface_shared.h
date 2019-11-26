@@ -5,11 +5,11 @@
 
 #define ARG_TYPE_SCALAR 1
 #define ARG_TYPE_LOCAL_MEM 2
-#define ARG_TYPE_MEM_OBJ 3
+#define ARG_TYPE_GLOBAL_MEM 3
 
 struct kernel_descriptor;
 
-typedef void (*kernel_launcher)(kernel_descriptor* desc);
+typedef void (*kernel_launcher)(struct _cl_kernel* desc);
 
 struct arg_descriptor {
 	int arg_type;
@@ -18,8 +18,9 @@ struct arg_descriptor {
 	} data;
 };
 
-struct kernel_descriptor {
-	const char* name;
+struct _cl_kernel {
+	char* name;
+	char* symbol_name;
 	size_t num_args;
 	arg_descriptor* arg_descriptors;
 	kernel_launcher launcher;
@@ -30,11 +31,13 @@ struct kernel_descriptor {
 	void** arg_data;
 };
 
-struct program_descriptor {
+struct _cl_program {
 	size_t num_kernels;
-	kernel_descriptor* kernels;
-	const char* build_log;
-	const char* build_options;
+	_cl_kernel* kernels;
+	char* build_log;
+	char* build_options;
 };
+
+kernel_launcher get_launcher_by_name(const char* name);
 
 #endif

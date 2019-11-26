@@ -3,8 +3,7 @@
 
 #include <device_launch_parameters.h>
 
-#define global
-#define __attribute__(x)
+#define KERNEL_LAUNCHER extern "C" __declspec(dllexport)
 
 typedef unsigned int uint;
 

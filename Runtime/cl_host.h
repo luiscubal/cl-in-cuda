@@ -15,11 +15,11 @@ typedef uint32_t cl_uint;
 typedef int64_t cl_long;
 typedef uint64_t cl_ulong;
 typedef int cl_event;
-typedef int cl_kernel;
+typedef struct _cl_kernel *cl_kernel;
 
 typedef int cl_platform_id;
 typedef int cl_device_id;
-typedef int cl_program;
+typedef struct _cl_program *cl_program;
 typedef int cl_context;
 typedef int cl_command_queue;
 typedef struct {

@@ -14,14 +14,19 @@
     <ClInclude Include="cl_device_assist.cuh" />
     <ClInclude Include="cl_host.h" />
     <ClInclude Include="cl_host_constants.h" />
-    <ClInclude Include="cl_interface_shared.cuh" />
+    <ClInclude Include="cl_interface_shared.h" />
+    <ClInclude Include="cpptoml.hpp" />
   </ItemGroup>
   <ItemGroup>
-    <CudaCompile Include="cl_host.cu" />
+    <CudaCompile Include="cl_host.cpp" />
     <CudaCompile Include="cuda_vectoradd_program.cu" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="get_launcher_by_name.win.cpp" />
     <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="vecadd.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{2D07A647-2EFF-4064-A931-271AA8E70CB2}</ProjectGuid>

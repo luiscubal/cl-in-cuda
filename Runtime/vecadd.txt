@@ -1,0 +1,16 @@
+[program]
+build_log = "Build Log Goes Here"
+build_options = "<opts>"
+
+[[kernels]]
+name = "vecadd"
+symbol_name = "vecadd_launcher"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
