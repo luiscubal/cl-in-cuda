@@ -38,6 +38,11 @@ public class ProgramStats {
 				case GLOBAL_PTR:
 					builder.append("type = \"global_ptr\"\n\n");
 					break;
+				case SCALAR:
+					builder.append("type = \"scalar\"\n");
+					builder.append("size = ");
+					builder.append(arg.size);
+					builder.append("\n\n");
 				}
 			}
 		}

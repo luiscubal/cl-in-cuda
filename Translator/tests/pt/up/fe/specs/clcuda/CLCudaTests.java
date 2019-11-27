@@ -32,10 +32,18 @@ public class CLCudaTests {
 	}
 	
 	@Test
-	public void testSimple() throws URISyntaxException, IOException {
+	public void testVectorAdd() throws URISyntaxException, IOException {
 		validateProgram(
 				new CLCuda().translate(new File(getTestResource("vectoradd.cl"))),
 				readTestResource("vectoradd.cu"),
 				readTestResource("vectoradd.toml"));
+	}
+	
+	@Test
+	public void testManualBound() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("manualbound.cl"))),
+				readTestResource("manualbound.cu"),
+				readTestResource("manualbound.toml"));
 	}
 }

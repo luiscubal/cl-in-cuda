@@ -1,0 +1,15 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "manualbound"
+symbol_name = "clcuda_launcher_manualbound"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "scalar"
+size = 4
+

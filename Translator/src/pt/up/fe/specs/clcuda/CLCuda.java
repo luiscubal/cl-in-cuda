@@ -16,6 +16,7 @@ import pt.up.fe.specs.clava.ast.expr.BinaryOperator;
 import pt.up.fe.specs.clava.ast.expr.CallExpr;
 import pt.up.fe.specs.clava.ast.expr.DeclRefExpr;
 import pt.up.fe.specs.clava.ast.expr.Expr;
+import pt.up.fe.specs.clava.ast.expr.FloatingLiteral;
 import pt.up.fe.specs.clava.ast.expr.IntegerLiteral;
 import pt.up.fe.specs.clava.ast.expr.enums.BinaryOperatorKind;
 import pt.up.fe.specs.clava.ast.extra.App;
@@ -23,7 +24,10 @@ import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
 import pt.up.fe.specs.clava.ast.stmt.CompoundStmt;
 import pt.up.fe.specs.clava.ast.stmt.DeclStmt;
 import pt.up.fe.specs.clava.ast.stmt.ExprStmt;
+import pt.up.fe.specs.clava.ast.stmt.IfStmt;
+import pt.up.fe.specs.clava.ast.stmt.NullStmt;
 import pt.up.fe.specs.clava.ast.stmt.Stmt;
+import pt.up.fe.specs.clava.ast.type.BuiltinType;
 import pt.up.fe.specs.clava.ast.type.PointerType;
 import pt.up.fe.specs.clava.ast.type.QualType;
 import pt.up.fe.specs.clava.ast.type.Type;
@@ -56,7 +60,7 @@ public class CLCuda {
 		
 		for (ClavaNode child : unit.getChildren()) {
 			if (child instanceof FunctionDecl) {
-				generateCodeForFunctionDecl((FunctionDecl) child, builder, rootTable, stats);
+				generateCodeForFunctionDecl((FunctionDecl) child, unit, builder, rootTable, stats);
 			} else {
 				throw new NotImplementedException(child.getClass());
 			}
@@ -65,7 +69,7 @@ public class CLCuda {
 		return builder.toString();
 	}
 	
-	private void generateCodeForFunctionDecl(FunctionDecl func, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
+	private void generateCodeForFunctionDecl(FunctionDecl func, TranslationUnit unit, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
 		String declName = func.getDeclName();
 		String symbolName = "clcuda_func_" + declName;
 		parentTable.addSymbol(declName, symbolName);
@@ -136,9 +140,18 @@ public class CLCuda {
 					} else {
 						throw new NotImplementedException(pointeeType.getClass());
 					}
-				} else {
-					throw new NotImplementedException(paramType.getClass());
+					continue;
 				}
+				if (paramType instanceof BuiltinType) {
+					kernelStats.args.add(ArgumentStats.fromScalar((BuiltinType) paramType, unit));
+					builder.append("\t\t*(");
+					generateCodeForType(paramType, builder);
+					builder.append("*) desc->arg_data[");
+					builder.append(i);
+					builder.append("],\n");
+					continue;
+				}
+				throw new NotImplementedException(paramType.getClass());
 			}
 			builder.append("\t\tCommonThreadData(desc->totalX, desc->totalY, desc->totalZ)\n");
 			builder.append("\t);\n");
@@ -174,6 +187,38 @@ public class CLCuda {
 			builder.append(";\n");
 			return;
 		}
+		if (stmt instanceof IfStmt) {
+			IfStmt ifStmt = (IfStmt) stmt;
+			Stmt thenCase = (Stmt)ifStmt.getChild(2);
+			Stmt elseCase = (Stmt)ifStmt.getChild(3);
+			
+			builder.append(indentation);
+			builder.append("if (");
+			buildExpr(ifStmt.getCondition(), symTable, builder);
+			builder.append(")\n");
+			if (thenCase instanceof NullStmt) {
+				builder.append(indentation);
+				builder.append("{\n");
+				builder.append(indentation);
+				builder.append("}\n");
+			} else {
+				buildStmt(thenCase, builder, symTable, indentation);
+			}
+			if (!(elseCase instanceof NullStmt)) {
+				builder.append("else\n");
+				buildStmt(elseCase, builder, symTable, indentation);
+			}
+			return;
+		}
+		if (stmt instanceof CompoundStmt) {
+			CompoundStmt compoundStmt = (CompoundStmt) stmt;
+			builder.append(indentation);
+			builder.append("{\n");
+			buildBody(compoundStmt, builder, new SymbolTable(symTable), indentation + "\t");
+			builder.append(indentation);
+			builder.append("}\n");
+			return;
+		}
 		throw new NotImplementedException(stmt.getClass());
 	}
 	
@@ -190,7 +235,7 @@ public class CLCuda {
 		}
 		if (expr instanceof CallExpr) {
 			CallExpr callExpr = (CallExpr) expr;
-			buildExpr(callExpr.getCallee(), symTable, builder);
+			mayParenthiseCallee(callExpr.getCallee(), symTable, builder);
 			builder.append("(");
 			for (Expr arg : callExpr.getArgs()) {
 				buildExpr(arg, symTable, builder);
@@ -231,11 +276,26 @@ public class CLCuda {
 			builder.append("]");
 			return;
 		}
+		if (expr instanceof FloatingLiteral) {
+			builder.append(expr.getCode());
+			return;
+		}
 		System.out.println(expr);
 	}
 	
 	private void mayParenthiseOperand(Expr operand, BinaryOperatorKind op, SymbolTable symTable, StringBuilder builder) {
-		boolean shouldParenthise = !isBasicUnit(operand);
+		boolean shouldParenthise = !(isBasicUnit(operand) || operand instanceof CallExpr);
+		if (shouldParenthise) {
+			builder.append("(");
+		}
+		buildExpr(operand, symTable, builder);
+		if (shouldParenthise) {
+			builder.append(")");
+		}
+	}
+	
+	private void mayParenthiseCallee(Expr operand, SymbolTable symTable, StringBuilder builder) {
+		boolean shouldParenthise = !(isBasicUnit(operand) || operand instanceof CallExpr);
 		if (shouldParenthise) {
 			builder.append("(");
 		}
@@ -246,7 +306,7 @@ public class CLCuda {
 	}
 	
 	private void mayParenthiseReferencedArray(Expr operand, SymbolTable symTable, StringBuilder builder) {
-		boolean shouldParenthise = !isBasicUnit(operand);
+		boolean shouldParenthise = !(isBasicUnit(operand) || operand instanceof CallExpr);
 		if (shouldParenthise) {
 			builder.append("(");
 		}
@@ -257,7 +317,8 @@ public class CLCuda {
 	}
 	
 	private boolean isBasicUnit(Expr expr) {
-		return expr instanceof DeclRefExpr;
+		return expr instanceof DeclRefExpr ||
+				expr instanceof FloatingLiteral;
 	}
 	
 	private void checkSafeName(String name) {
