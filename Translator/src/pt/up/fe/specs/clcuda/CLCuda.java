@@ -24,6 +24,7 @@ import pt.up.fe.specs.clava.ast.expr.Expr;
 import pt.up.fe.specs.clava.ast.expr.FloatingLiteral;
 import pt.up.fe.specs.clava.ast.expr.IntegerLiteral;
 import pt.up.fe.specs.clava.ast.expr.MemberExpr;
+import pt.up.fe.specs.clava.ast.expr.ParenExpr;
 import pt.up.fe.specs.clava.ast.expr.UnaryOperator;
 import pt.up.fe.specs.clava.ast.expr.enums.BinaryOperatorKind;
 import pt.up.fe.specs.clava.ast.expr.enums.UnaryOperatorKind;
@@ -32,6 +33,7 @@ import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
 import pt.up.fe.specs.clava.ast.stmt.CompoundStmt;
 import pt.up.fe.specs.clava.ast.stmt.DeclStmt;
 import pt.up.fe.specs.clava.ast.stmt.ExprStmt;
+import pt.up.fe.specs.clava.ast.stmt.ForStmt;
 import pt.up.fe.specs.clava.ast.stmt.IfStmt;
 import pt.up.fe.specs.clava.ast.stmt.NullStmt;
 import pt.up.fe.specs.clava.ast.stmt.Stmt;
@@ -201,7 +203,7 @@ public class CLCuda {
 		}
 	}
 	
-	private void buildStmt(Stmt stmt, StringBuilder builder, SymbolTable symTable, String indentation) {
+	private void buildUnseparatedStmt(Stmt stmt, StringBuilder builder, SymbolTable symTable, String indentation) {
 		if (stmt instanceof DeclStmt) {
 			DeclStmt declStmt = (DeclStmt) stmt;
 			
@@ -219,16 +221,19 @@ public class CLCuda {
 					builder.append(" = ");
 					buildExpr((Expr) varDecl.getChild(0), symTable, builder);
 				}
-				builder.append(";\n");
 			}
 			return;
 		}
 		if (stmt instanceof ExprStmt) {
 			builder.append(indentation);
 			buildExpr(((ExprStmt) stmt).getExpr(), symTable, builder);
-			builder.append(";\n");
 			return;
 		}
+
+		throw new NotImplementedException(stmt.getClass());
+	}
+	
+	private void buildStmt(Stmt stmt, StringBuilder builder, SymbolTable symTable, String indentation) {
 		if (stmt instanceof IfStmt) {
 			IfStmt ifStmt = (IfStmt) stmt;
 			Stmt thenCase = (Stmt)ifStmt.getChild(2);
@@ -242,13 +247,12 @@ public class CLCuda {
 				builder.append(indentation);
 				builder.append("{\n");
 				builder.append(indentation);
-				builder.append("}\n");
+				builder.append("}");
 			} else {
 				buildStmt(thenCase, builder, symTable, indentation);
 			}
 			if (!(elseCase instanceof NullStmt)) {
-				builder.append(indentation);
-				builder.append("else\n");
+				builder.append(" else\n");
 				buildStmt(elseCase, builder, symTable, indentation);
 			}
 			return;
@@ -259,15 +263,41 @@ public class CLCuda {
 			builder.append("{\n");
 			buildBody(compoundStmt, builder, new SymbolTable(symTable), indentation + "\t");
 			builder.append(indentation);
-			builder.append("}\n");
+			builder.append("}");
 			return;
 		}
-		throw new NotImplementedException(stmt.getClass());
+		if (stmt instanceof ForStmt) {
+			ForStmt forStmt = (ForStmt) stmt;
+			builder.append(indentation);
+			builder.append("for (");
+			SymbolTable forTable = new SymbolTable(symTable);
+			if (forStmt.getInit().isPresent()) {
+				Stmt init = forStmt.getInit().get();
+				buildUnseparatedStmt(init, builder, forTable, "");
+			}
+			builder.append("; ");
+			if (forStmt.getCond().isPresent()) {
+				Stmt cond = forStmt.getCond().get();
+				buildUnseparatedStmt(cond, builder, forTable, "");
+			}
+			builder.append(";");
+			if (forStmt.getInc().isPresent()) {
+				Stmt inc = forStmt.getInc().get();
+				builder.append(" ");
+				buildUnseparatedStmt(inc, builder, forTable, "");
+			}
+			builder.append(")\n");
+			buildStmt(forStmt.getBody(), builder, forTable, indentation);
+			return;
+		}
+		buildUnseparatedStmt(stmt, builder, symTable, indentation);
+		builder.append(";");
 	}
 	
 	private void buildBody(CompoundStmt block, StringBuilder builder, SymbolTable symTable, String indentation) {
 		for (Stmt stmt : block.getChildren(Stmt.class)) {
 			buildStmt(stmt, builder, symTable, indentation);
+			builder.append("\n");
 		}
 	}
 	
@@ -342,6 +372,10 @@ public class CLCuda {
 				builder.append(kind.getCode());
 				mayParenthiseUnaryOperand(operand, kind, symTable, builder);
 			}
+			return;
+		}
+		if (expr instanceof ParenExpr) {
+			buildExpr((Expr)expr.getChild(0), symTable, builder);
 			return;
 		}
 		System.out.println(expr);
@@ -460,6 +494,7 @@ public class CLCuda {
 	private void checkSafeName(String name) {
 		switch (name) {
 		case "get_global_id":
+		case "get_global_size":
 			return;
 		default:
 			throw new RuntimeException("Unknown name: " + name);

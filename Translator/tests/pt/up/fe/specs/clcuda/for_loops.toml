@@ -1,0 +1,15 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "for_loops"
+symbol_name = "clcuda_launcher_for_loops"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "scalar"
+size = 4
+

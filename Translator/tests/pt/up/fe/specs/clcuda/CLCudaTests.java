@@ -56,6 +56,14 @@ public class CLCudaTests {
 	}
 	
 	@Test
+	public void testForLoops() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("for_loops.cl"))),
+				readTestResource("for_loops.cu"),
+				readTestResource("for_loops.toml"));
+	}
+	
+	@Test
 	public void testStructs() throws URISyntaxException, IOException {
 		validateProgram(
 				new CLCuda().translate(new File(getTestResource("structs.cl"))),
