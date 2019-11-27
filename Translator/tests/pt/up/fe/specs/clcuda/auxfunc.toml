@@ -1,0 +1,14 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "auxfunc"
+symbol_name = "clcuda_launcher_auxfunc"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+

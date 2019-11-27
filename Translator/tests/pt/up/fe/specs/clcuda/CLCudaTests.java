@@ -100,4 +100,12 @@ public class CLCudaTests {
 				readTestResource("comment.cu"),
 				readTestResource("comment.toml"));
 	}
+	
+	@Test
+	public void testAuxFunc() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("auxfunc.cl"))),
+				readTestResource("auxfunc.cu"),
+				readTestResource("auxfunc.toml"));
+	}
 }

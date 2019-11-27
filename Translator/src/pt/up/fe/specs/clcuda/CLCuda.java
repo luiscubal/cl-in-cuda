@@ -38,6 +38,7 @@ import pt.up.fe.specs.clava.ast.stmt.ExprStmt;
 import pt.up.fe.specs.clava.ast.stmt.ForStmt;
 import pt.up.fe.specs.clava.ast.stmt.IfStmt;
 import pt.up.fe.specs.clava.ast.stmt.NullStmt;
+import pt.up.fe.specs.clava.ast.stmt.ReturnStmt;
 import pt.up.fe.specs.clava.ast.stmt.Stmt;
 import pt.up.fe.specs.clava.ast.stmt.WhileStmt;
 import pt.up.fe.specs.clava.ast.stmt.WrapperStmt;
@@ -151,9 +152,11 @@ public class CLCuda {
 		}
 		builder.append("CommonKernelData data");
 		builder.append(")\n{\n");
-		builder.append("\tif (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;\n");
-		builder.append("\tif (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;\n");
-		builder.append("\tif (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;\n\n");
+		if (isKernel) {
+			builder.append("\tif (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;\n");
+			builder.append("\tif (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;\n");
+			builder.append("\tif (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;\n\n");
+		}
 		
 		if (func.getBody().isPresent()) {
 			CompoundStmt stmt = func.getBody().get();
@@ -326,6 +329,16 @@ public class CLCuda {
 			}
 			builder.append(")\n");
 			buildStmt(forStmt.getBody(), builder, forTable, indentation);
+			return;
+		}
+		if (stmt instanceof ReturnStmt) {
+			builder.append(indentation);
+			builder.append("return");
+			if (stmt.getNumChildren() != 0) {
+				builder.append(" ");
+				buildExpr((Expr) stmt.getChild(0), symTable, builder);
+			}
+			builder.append(";");
 			return;
 		}
 		buildUnseparatedStmt(stmt, builder, symTable, indentation);
