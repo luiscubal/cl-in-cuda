@@ -14,6 +14,13 @@ public class ArgumentStats {
 		
 		return stats;
 	}
+	
+	public static ArgumentStats fromLocalPtr() {
+		ArgumentStats stats = new ArgumentStats();
+		stats.type = ArgumentType.LOCAL_PTR;
+		
+		return stats;
+	}
 
 	public static ArgumentStats fromScalar(BuiltinType type, TranslationUnit unit) {
 		ArgumentStats stats = new ArgumentStats();

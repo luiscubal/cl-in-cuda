@@ -38,6 +38,9 @@ public class ProgramStats {
 				case GLOBAL_PTR:
 					builder.append("type = \"global_ptr\"\n\n");
 					break;
+				case LOCAL_PTR:
+					builder.append("type = \"local_ptr\"\n\n");
+					break;
 				case SCALAR:
 					builder.append("type = \"scalar\"\n");
 					builder.append("size = ");

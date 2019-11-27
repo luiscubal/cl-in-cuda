@@ -32,7 +32,9 @@ import pt.up.fe.specs.clava.ast.expr.enums.BinaryOperatorKind;
 import pt.up.fe.specs.clava.ast.expr.enums.UnaryOperatorKind;
 import pt.up.fe.specs.clava.ast.extra.App;
 import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
+import pt.up.fe.specs.clava.ast.stmt.BreakStmt;
 import pt.up.fe.specs.clava.ast.stmt.CompoundStmt;
+import pt.up.fe.specs.clava.ast.stmt.ContinueStmt;
 import pt.up.fe.specs.clava.ast.stmt.DeclStmt;
 import pt.up.fe.specs.clava.ast.stmt.ExprStmt;
 import pt.up.fe.specs.clava.ast.stmt.ForStmt;
@@ -144,10 +146,31 @@ public class CLCuda {
 		builder.append(" ");
 		builder.append(symbolName);
 		builder.append("(");
+		
+		LocalMemoryTable localMemoryTable = new LocalMemoryTable();
+		
 		for (ParmVarDecl param : func.getParameters()) {
 			String paramName = param.getDeclName();
 			funcTable.addSymbol(paramName, "var_" + paramName);
-			generateVarDecl(param.getType(), "var_" + paramName, funcTable, builder);
+			
+			Type paramType = param.getType();
+			Type processedType = paramType;
+			if (paramType instanceof QualType) {
+				processedType = ((QualType) paramType).getUnqualifiedType();
+			}
+			
+			if (processedType instanceof PointerType) {
+				Type pointeeType = ((PointerType) processedType).getPointeeType();
+				if (isKernel && pointeeType.get(QualType.ADDRESS_SPACE_QUALIFIER) == AddressSpaceQualifierV2.LOCAL) {
+					String offsetName = "clcuda_offset_" + paramName;
+					builder.append("size_t ");
+					builder.append(offsetName);
+					builder.append(", ");
+					localMemoryTable.add(paramName, offsetName, paramType, ((QualType) pointeeType).getUnqualifiedType());
+					continue;
+				}
+			}
+			generateVarDecl(paramType, "var_" + paramName, funcTable, builder);
 			builder.append(", ");
 		}
 		builder.append("CommonKernelData data");
@@ -155,7 +178,21 @@ public class CLCuda {
 		if (isKernel) {
 			builder.append("\tif (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;\n");
 			builder.append("\tif (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;\n");
-			builder.append("\tif (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;\n\n");
+			builder.append("\tif (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;\n\t\n");
+			
+			if (!localMemoryTable.isEmpty()) {
+				builder.append("\textern __shared__ char local_mem[];\n");
+				for (LocalMemoryTable.TableEntry entry : localMemoryTable) {
+					builder.append("\t");
+					generateVarDecl(entry.fullType, "var_" + entry.paramName, funcTable, builder);
+					builder.append(" = (");
+					generateCodeForType(entry.fullType, funcTable, builder);
+					builder.append(") (local_mem + ");
+					builder.append(entry.offsetName);
+					builder.append(");\n");
+				}
+				builder.append("\t\n");
+			}
 		}
 		
 		if (func.getBody().isPresent()) {
@@ -177,46 +214,93 @@ public class CLCuda {
 			builder.append("{\n");
 			builder.append("\tdim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);\n");
 			builder.append("\tdim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);\n");
-			builder.append("\n\t");
-			builder.append(symbolName);
-			builder.append("<<<num_grids, local_size>>>(\n");
+			builder.append("\t\n");
+			
+			StringBuilder localMemBuilder = new StringBuilder();
+			if (!localMemoryTable.isEmpty()) {
+				builder.append("\tsize_t local_mem_size = 0;\n");
+			}
+			
+			StringBuilder kernelCallBuilder = new StringBuilder();
+			kernelCallBuilder.append("\t");
+			kernelCallBuilder.append(symbolName);
+			kernelCallBuilder.append("<<<num_grids, local_size");
+			if (!localMemoryTable.isEmpty()) {
+				kernelCallBuilder.append(", local_mem_size");
+			}
+			kernelCallBuilder.append(">>>(\n");
+			int localMemoryTableIndex = 0;
 			List<ParmVarDecl> parameters = func.getParameters();
-			for (int i = 0; i < parameters.size(); i++) {
-				ParmVarDecl param = parameters.get(i);
+			for (int argumentIndex = 0; argumentIndex < parameters.size(); argumentIndex++) {
+				ParmVarDecl param = parameters.get(argumentIndex);
 				Type paramType = param.getType();
 				Type processedType = paramType;
-				String qualifierPrefixes = "";
 				if (processedType instanceof QualType) {
-					QualType qualType = (QualType) paramType;
+					QualType qualType = (QualType) processedType;
 					processedType = qualType.getUnqualifiedType();
+				}
+				if (processedType instanceof TypedefType) {
+					processedType = ((TypedefType) processedType).desugar();
 				}
 				if (processedType instanceof PointerType) {
 					Type pointeeType = ((PointerType) processedType).getPointeeType();
 					if (pointeeType.get(QualType.ADDRESS_SPACE_QUALIFIER) == AddressSpaceQualifierV2.GLOBAL) {
 						kernelStats.args.add(ArgumentStats.fromGlobalPtr());
-						builder.append("\t\t(");
-						generateCodeForType(paramType, funcTable, builder);
-						builder.append(") desc->arg_data[");
-						builder.append(i);
-						builder.append("],\n");
+						kernelCallBuilder.append("\t\t(");
+						generateCodeForType(paramType, funcTable, kernelCallBuilder);
+						kernelCallBuilder.append(") desc->arg_data[");
+						kernelCallBuilder.append(argumentIndex);
+						kernelCallBuilder.append("],\n");
 					} else {
-						throw new NotImplementedException(pointeeType.getClass());
+						LocalMemoryTable.TableEntry entry = localMemoryTable.get(localMemoryTableIndex);
+						kernelStats.args.add(ArgumentStats.fromLocalPtr());
+						kernelCallBuilder.append("\t\t");
+						kernelCallBuilder.append(entry.offsetName);
+						kernelCallBuilder.append(",\n");
+						
+						if (localMemoryTableIndex > 0) {
+							int size = entry.underlyingType.get(BuiltinType.KIND).getBitwidth(unit.get(TranslationUnit.LANGUAGE)) / 8;
+							localMemBuilder.append("\tlocal_mem_size = ((local_mem_size + ");
+							localMemBuilder.append(size - 1);
+							localMemBuilder.append(") / ");
+							localMemBuilder.append(size);
+							localMemBuilder.append(") * ");
+							localMemBuilder.append(size);
+							localMemBuilder.append(";\n");
+						}
+						
+						localMemBuilder.append("\tsize_t ");
+						localMemBuilder.append(entry.offsetName);
+						localMemBuilder.append(" = local_mem_size;\n");
+						localMemBuilder.append("\tlocal_mem_size += desc->arg_data[");
+						localMemBuilder.append(argumentIndex);
+						localMemBuilder.append("];\n");
+						
+						localMemoryTableIndex++;
 					}
 					continue;
 				}
 				if (processedType instanceof BuiltinType) {
 					kernelStats.args.add(ArgumentStats.fromScalar((BuiltinType) processedType, unit));
-					builder.append("\t\t*(");
-					generateCodeForType(paramType, funcTable, builder);
-					builder.append("*) desc->arg_data[");
-					builder.append(i);
-					builder.append("],\n");
+					kernelCallBuilder.append("\t\t*(");
+					generateCodeForType(paramType, funcTable, kernelCallBuilder);
+					kernelCallBuilder.append("*) desc->arg_data[");
+					kernelCallBuilder.append(argumentIndex);
+					kernelCallBuilder.append("],\n");
+					
 					continue;
 				}
-				throw new NotImplementedException(paramType.getClass());
+				System.out.println(processedType);
+				throw new NotImplementedException(processedType.getClass());
 			}
-			builder.append("\t\tCommonThreadData(desc->totalX, desc->totalY, desc->totalZ)\n");
-			builder.append("\t);\n");
+			kernelCallBuilder.append("\t\tCommonThreadData(desc->totalX, desc->totalY, desc->totalZ)\n");
+			kernelCallBuilder.append("\t);");
+			if (!localMemoryTable.isEmpty()) {
+				builder.append(localMemBuilder);
+				builder.append("\t\n");
+			}
+			builder.append(kernelCallBuilder);
+			builder.append("\n");
 			builder.append("}\n\n");
 		}
 	}
@@ -339,6 +423,18 @@ public class CLCuda {
 				buildExpr((Expr) stmt.getChild(0), symTable, builder);
 			}
 			builder.append(";");
+			return;
+		}
+		if (stmt instanceof BreakStmt) {
+			// FIXME: support labelled breaks?
+			builder.append(indentation);
+			builder.append("break;");
+			return;
+		}
+		if (stmt instanceof ContinueStmt) {
+			// FIXME: support labelled continues?
+			builder.append(indentation);
+			builder.append("continue;");
 			return;
 		}
 		buildUnseparatedStmt(stmt, builder, symTable, indentation);
@@ -547,6 +643,16 @@ public class CLCuda {
 		switch (name) {
 		case "get_global_id":
 		case "get_global_size":
+		case "get_local_id":
+		case "get_local_size":
+		case "get_group_id":
+		case "barrier":
+		case "sqrt":
+		case "exp":
+		case "log":
+		case "sin":
+		case "cos":
+		case "tan":
 			return;
 		default:
 			throw new RuntimeException("Unknown name: " + name);

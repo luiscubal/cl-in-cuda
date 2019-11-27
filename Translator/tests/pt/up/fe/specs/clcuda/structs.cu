@@ -12,7 +12,7 @@ __global__ void clcuda_func_structs(float *var_data, int var_dim1, CommonKernelD
 	if (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;
 	if (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;
 	if (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;
-
+	
 	struct clcuda_type_array var_arr;
 	var_arr.field_data = var_data;
 	var_arr.field_dim1 = var_dim1;
@@ -23,7 +23,7 @@ KERNEL_LAUNCHER void clcuda_launcher_structs(struct _cl_kernel *desc)
 {
 	dim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);
 	dim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);
-
+	
 	clcuda_func_structs<<<num_grids, local_size>>>(
 		(float*) desc->arg_data[0],
 		*(int*) desc->arg_data[1],

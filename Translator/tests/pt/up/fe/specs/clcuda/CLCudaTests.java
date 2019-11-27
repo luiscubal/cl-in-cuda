@@ -108,4 +108,12 @@ public class CLCudaTests {
 				readTestResource("auxfunc.cu"),
 				readTestResource("auxfunc.toml"));
 	}
+	
+	@Test
+	public void testDynamicLocalMem() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("dynamic_local_mem.cl"))),
+				readTestResource("dynamic_local_mem.cu"),
+				readTestResource("dynamic_local_mem.toml"));
+	}
 }

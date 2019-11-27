@@ -1,0 +1,14 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "dynamic_local_mem"
+symbol_name = "clcuda_launcher_dynamic_local_mem"
+
+[[kernels.args]]
+type = "local_ptr"
+
+[[kernels.args]]
+type = "local_ptr"
+
