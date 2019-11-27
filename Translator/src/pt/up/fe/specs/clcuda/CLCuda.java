@@ -5,6 +5,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.jaxen.expr.UnaryExpr;
+
 import pt.up.fe.specs.clang.codeparser.CodeParser;
 import pt.up.fe.specs.clava.ClavaNode;
 import pt.up.fe.specs.clava.ast.attr.OpenCLKernelAttr;
@@ -22,7 +24,9 @@ import pt.up.fe.specs.clava.ast.expr.Expr;
 import pt.up.fe.specs.clava.ast.expr.FloatingLiteral;
 import pt.up.fe.specs.clava.ast.expr.IntegerLiteral;
 import pt.up.fe.specs.clava.ast.expr.MemberExpr;
+import pt.up.fe.specs.clava.ast.expr.UnaryOperator;
 import pt.up.fe.specs.clava.ast.expr.enums.BinaryOperatorKind;
+import pt.up.fe.specs.clava.ast.expr.enums.UnaryOperatorKind;
 import pt.up.fe.specs.clava.ast.extra.App;
 import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
 import pt.up.fe.specs.clava.ast.stmt.CompoundStmt;
@@ -243,6 +247,7 @@ public class CLCuda {
 				buildStmt(thenCase, builder, symTable, indentation);
 			}
 			if (!(elseCase instanceof NullStmt)) {
+				builder.append(indentation);
 				builder.append("else\n");
 				buildStmt(elseCase, builder, symTable, indentation);
 			}
@@ -326,9 +331,22 @@ public class CLCuda {
 			builder.append(getMangledFieldName(memberExpr.getBase(), memberExpr.getMemberName(), symTable));
 			return;
 		}
+		if (expr instanceof UnaryOperator) {
+			UnaryOperator unaryOperator = (UnaryOperator) expr;
+			Expr operand = (Expr) unaryOperator.getChild(0);
+			UnaryOperatorKind kind = unaryOperator.getOp();
+			if (kind == UnaryOperatorKind.PostDec || kind == UnaryOperatorKind.PostInc) {
+				mayParenthiseUnaryOperand(operand, kind, symTable, builder);
+				builder.append(kind.getCode());
+			} else {
+				builder.append(kind.getCode());
+				mayParenthiseUnaryOperand(operand, kind, symTable, builder);
+			}
+			return;
+		}
 		System.out.println(expr);
 	}
-	
+
 	private Object getMangledFieldName(Expr base, String memberName, SymbolTable symTable) {
 		Type type = base.getType();
 		RecordType recordType = getUnderlyingRecordType(type);
@@ -348,6 +366,19 @@ public class CLCuda {
 		}
 		
 		return null;
+	}
+	
+	private void mayParenthiseUnaryOperand(Expr operand, UnaryOperatorKind kind, SymbolTable symTable,
+			StringBuilder builder) {
+		
+		boolean shouldParenthise = !isSimpleUnit(operand);
+		if (shouldParenthise) {
+			builder.append("(");
+		}
+		buildExpr(operand, symTable, builder);
+		if (shouldParenthise) {
+			builder.append(")");
+		}
 	}
 
 	private void mayParenthiseOperand(Expr operand, BinaryOperatorKind op, SymbolTable symTable, StringBuilder builder) {
@@ -416,7 +447,8 @@ public class CLCuda {
 	private boolean isSimpleUnit(Expr expr) {
 		return isAtomicUnit(expr) ||
 				expr instanceof CallExpr ||
-				expr instanceof MemberExpr;
+				expr instanceof MemberExpr ||
+				expr instanceof ArraySubscriptExpr;
 	}
 	
 	private boolean isAtomicUnit(Expr expr) {

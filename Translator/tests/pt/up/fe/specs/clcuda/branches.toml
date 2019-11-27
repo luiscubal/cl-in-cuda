@@ -1,0 +1,14 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "branches"
+symbol_name = "clcuda_launcher_branches"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+

@@ -16,7 +16,7 @@ __global__ void clcuda_func_structs(float *var_data, int var_dim1, CommonKernelD
 	struct clcuda_type_array var_arr;
 	var_arr.field_data = var_data;
 	var_arr.field_dim1 = var_dim1;
-	(var_arr.field_data[var_arr.field_dim1 - get_global_id(0, data) - 1]) = get_global_id(0, data);
+	var_arr.field_data[var_arr.field_dim1 - get_global_id(0, data) - 1] = get_global_id(0, data);
 }
 
 KERNEL_LAUNCHER void clcuda_launcher_structs(struct _cl_kernel *desc)

@@ -48,6 +48,14 @@ public class CLCudaTests {
 	}
 	
 	@Test
+	public void testBranches() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("branches.cl"))),
+				readTestResource("branches.cu"),
+				readTestResource("branches.toml"));
+	}
+	
+	@Test
 	public void testStructs() throws URISyntaxException, IOException {
 		validateProgram(
 				new CLCuda().translate(new File(getTestResource("structs.cl"))),
