@@ -46,4 +46,12 @@ public class CLCudaTests {
 				readTestResource("manualbound.cu"),
 				readTestResource("manualbound.toml"));
 	}
+	
+	@Test
+	public void testStructs() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("structs.cl"))),
+				readTestResource("structs.cu"),
+				readTestResource("structs.toml"));
+	}
 }

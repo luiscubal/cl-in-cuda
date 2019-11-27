@@ -1,0 +1,15 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "structs"
+symbol_name = "clcuda_launcher_structs"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "scalar"
+size = 4
+

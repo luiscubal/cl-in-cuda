@@ -3,13 +3,16 @@ package pt.up.fe.specs.clcuda;
 import java.io.File;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import pt.up.fe.specs.clang.codeparser.CodeParser;
 import pt.up.fe.specs.clava.ClavaNode;
 import pt.up.fe.specs.clava.ast.attr.OpenCLKernelAttr;
 import pt.up.fe.specs.clava.ast.decl.Decl;
+import pt.up.fe.specs.clava.ast.decl.FieldDecl;
 import pt.up.fe.specs.clava.ast.decl.FunctionDecl;
 import pt.up.fe.specs.clava.ast.decl.ParmVarDecl;
+import pt.up.fe.specs.clava.ast.decl.RecordDecl;
 import pt.up.fe.specs.clava.ast.decl.VarDecl;
 import pt.up.fe.specs.clava.ast.expr.ArraySubscriptExpr;
 import pt.up.fe.specs.clava.ast.expr.BinaryOperator;
@@ -18,6 +21,7 @@ import pt.up.fe.specs.clava.ast.expr.DeclRefExpr;
 import pt.up.fe.specs.clava.ast.expr.Expr;
 import pt.up.fe.specs.clava.ast.expr.FloatingLiteral;
 import pt.up.fe.specs.clava.ast.expr.IntegerLiteral;
+import pt.up.fe.specs.clava.ast.expr.MemberExpr;
 import pt.up.fe.specs.clava.ast.expr.enums.BinaryOperatorKind;
 import pt.up.fe.specs.clava.ast.extra.App;
 import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
@@ -28,11 +32,14 @@ import pt.up.fe.specs.clava.ast.stmt.IfStmt;
 import pt.up.fe.specs.clava.ast.stmt.NullStmt;
 import pt.up.fe.specs.clava.ast.stmt.Stmt;
 import pt.up.fe.specs.clava.ast.type.BuiltinType;
+import pt.up.fe.specs.clava.ast.type.ElaboratedType;
 import pt.up.fe.specs.clava.ast.type.PointerType;
 import pt.up.fe.specs.clava.ast.type.QualType;
+import pt.up.fe.specs.clava.ast.type.RecordType;
 import pt.up.fe.specs.clava.ast.type.Type;
 import pt.up.fe.specs.clava.ast.type.TypedefType;
 import pt.up.fe.specs.clava.ast.type.enums.AddressSpaceQualifierV2;
+import pt.up.fe.specs.clava.language.TagKind;
 import pt.up.fe.specs.util.exceptions.NotImplementedException;
 
 public class CLCuda {
@@ -61,12 +68,43 @@ public class CLCuda {
 		for (ClavaNode child : unit.getChildren()) {
 			if (child instanceof FunctionDecl) {
 				generateCodeForFunctionDecl((FunctionDecl) child, unit, builder, rootTable, stats);
+			} else if (child instanceof RecordDecl) {
+				RecordDecl recordDecl = (RecordDecl) child;
+				switch (recordDecl.getTagKind()) {
+				case STRUCT:
+					generateCodeForStructDecl(recordDecl, unit, builder, rootTable, stats);
+					break;
+				default:
+					throw new NotImplementedException(recordDecl.getTagKind().toString());
+				}
 			} else {
 				throw new NotImplementedException(child.getClass());
 			}
 		}
 		
 		return builder.toString();
+	}
+	
+	private void generateCodeForStructDecl(RecordDecl struct, TranslationUnit unit, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
+		String declName = struct.getDeclName();
+		String symbolName = "clcuda_type_" + declName;
+		Map<String, String> fieldTable = parentTable.addStructSymbol(declName, symbolName);
+		
+		builder.append("struct ");
+		builder.append(symbolName);
+		builder.append("\n{\n");
+		
+		for (FieldDecl field : struct.getFields()) {
+			String fieldName = field.getDeclName();
+			String fieldSymbolName = "field_" + fieldName;
+			fieldTable.put(fieldName, fieldSymbolName);
+			
+			builder.append("\t");
+			generateVarDecl(field.getType(), fieldSymbolName, parentTable, builder);
+			builder.append(";\n");
+		}
+		
+		builder.append("};\n\n");
 	}
 	
 	private void generateCodeForFunctionDecl(FunctionDecl func, TranslationUnit unit, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
@@ -83,14 +121,14 @@ public class CLCuda {
 		}
 		
 		builder.append(isKernel ? "__global__ " : "__device__ ");
-		generateCodeForType(func.getReturnType(), builder);
+		generateCodeForType(func.getReturnType(), funcTable, builder);
 		builder.append(" ");
 		builder.append(symbolName);
 		builder.append("(");
 		for (ParmVarDecl param : func.getParameters()) {
 			String paramName = param.getDeclName();
 			funcTable.addSymbol(paramName, "var_" + paramName);
-			generateVarDecl(param.getType(), "var_" + paramName, builder);
+			generateVarDecl(param.getType(), "var_" + paramName, funcTable, builder);
 			builder.append(", ");
 		}
 		builder.append("CommonKernelData data");
@@ -133,7 +171,7 @@ public class CLCuda {
 					if (pointeeType.get(QualType.ADDRESS_SPACE_QUALIFIER) == AddressSpaceQualifierV2.GLOBAL) {
 						kernelStats.args.add(ArgumentStats.fromGlobalPtr());
 						builder.append("\t\t(");
-						generateCodeForType(paramType, builder);
+						generateCodeForType(paramType, funcTable, builder);
 						builder.append(") desc->arg_data[");
 						builder.append(i);
 						builder.append("],\n");
@@ -145,7 +183,7 @@ public class CLCuda {
 				if (paramType instanceof BuiltinType) {
 					kernelStats.args.add(ArgumentStats.fromScalar((BuiltinType) paramType, unit));
 					builder.append("\t\t*(");
-					generateCodeForType(paramType, builder);
+					generateCodeForType(paramType, funcTable, builder);
 					builder.append("*) desc->arg_data[");
 					builder.append(i);
 					builder.append("],\n");
@@ -171,7 +209,7 @@ public class CLCuda {
 				symTable.addSymbol(name, mangledName);
 				
 				builder.append(indentation);
-				generateVarDecl(varDecl.getType(), mangledName, builder);
+				generateVarDecl(varDecl.getType(), mangledName, symTable, builder);
 				
 				if (varDecl.getNumChildren() > 0) {
 					builder.append(" = ");
@@ -280,11 +318,48 @@ public class CLCuda {
 			builder.append(expr.getCode());
 			return;
 		}
+		if (expr instanceof MemberExpr) {
+			MemberExpr memberExpr = (MemberExpr) expr;
+			mayParenthiseMemberBase(memberExpr.getBase(), symTable, builder);
+			builder.append(memberExpr.isArrow() ? "->" : ".");
+			
+			builder.append(getMangledFieldName(memberExpr.getBase(), memberExpr.getMemberName(), symTable));
+			return;
+		}
 		System.out.println(expr);
 	}
 	
+	private Object getMangledFieldName(Expr base, String memberName, SymbolTable symTable) {
+		Type type = base.getType();
+		RecordType recordType = getUnderlyingRecordType(type);
+		
+		return symTable.getMangledFieldName(recordType.getDecl().getDeclName(), memberName);
+	}
+
+	private RecordType getUnderlyingRecordType(Type type) {
+		if (type instanceof QualType) {
+			return getUnderlyingRecordType(((QualType) type).getUnqualifiedType());
+		}
+		if (type instanceof RecordType) {
+			return (RecordType) type;
+		}
+		if (type instanceof ElaboratedType) {
+			return getUnderlyingRecordType(((ElaboratedType) type).getNamedType());
+		}
+		
+		return null;
+	}
+
 	private void mayParenthiseOperand(Expr operand, BinaryOperatorKind op, SymbolTable symTable, StringBuilder builder) {
-		boolean shouldParenthise = !(isBasicUnit(operand) || operand instanceof CallExpr);
+		boolean shouldParenthise = !isSimpleUnit(operand);
+		if (shouldParenthise) {
+			if (operand instanceof BinaryOperator) {
+				BinaryOperatorKind childOp = ((BinaryOperator) operand).getOp();
+				if (childOp == op && isAssociative(op)) {
+					shouldParenthise = false;
+				}
+			}
+		}
 		if (shouldParenthise) {
 			builder.append("(");
 		}
@@ -295,7 +370,7 @@ public class CLCuda {
 	}
 	
 	private void mayParenthiseCallee(Expr operand, SymbolTable symTable, StringBuilder builder) {
-		boolean shouldParenthise = !(isBasicUnit(operand) || operand instanceof CallExpr);
+		boolean shouldParenthise = !isSimpleUnit(operand);
 		if (shouldParenthise) {
 			builder.append("(");
 		}
@@ -306,7 +381,7 @@ public class CLCuda {
 	}
 	
 	private void mayParenthiseReferencedArray(Expr operand, SymbolTable symTable, StringBuilder builder) {
-		boolean shouldParenthise = !(isBasicUnit(operand) || operand instanceof CallExpr);
+		boolean shouldParenthise = !isSimpleUnit(operand);
 		if (shouldParenthise) {
 			builder.append("(");
 		}
@@ -316,9 +391,38 @@ public class CLCuda {
 		}
 	}
 	
-	private boolean isBasicUnit(Expr expr) {
+	private void mayParenthiseMemberBase(Expr operand, SymbolTable symTable, StringBuilder builder) {
+		boolean shouldParenthise = !isSimpleUnit(operand);
+		if (shouldParenthise) {
+			builder.append("(");
+		}
+		buildExpr(operand, symTable, builder);
+		if (shouldParenthise) {
+			builder.append(")");
+		}
+	}
+	
+	private boolean isAssociative(BinaryOperatorKind kind) {
+		switch (kind) {
+		case Add:
+		case Sub:
+		case Mul:
+			return true;
+		default:
+			return false;
+		}
+	}
+	
+	private boolean isSimpleUnit(Expr expr) {
+		return isAtomicUnit(expr) ||
+				expr instanceof CallExpr ||
+				expr instanceof MemberExpr;
+	}
+	
+	private boolean isAtomicUnit(Expr expr) {
 		return expr instanceof DeclRefExpr ||
-				expr instanceof FloatingLiteral;
+				expr instanceof FloatingLiteral ||
+				expr instanceof IntegerLiteral;
 	}
 	
 	private void checkSafeName(String name) {
@@ -330,33 +434,33 @@ public class CLCuda {
 		}
 	}
 
-	private void generateVarDecl(Type type, String paramName, StringBuilder builder) {
+	private void generateVarDecl(Type type, String paramName, SymbolTable symTable, StringBuilder builder) {
 		if (type instanceof QualType) {
-			generateVarDecl(((QualType) type).getUnqualifiedType(), paramName, builder);
+			generateVarDecl(((QualType) type).getUnqualifiedType(), paramName, symTable, builder);
 			return;
 		}
 		if (type instanceof PointerType) {
 			PointerType pointerType = (PointerType) type;
-			generateCodeForType(pointerType.getPointeeType(), builder);
+			generateCodeForType(pointerType.getPointeeType(), symTable, builder);
 			builder.append(" *");
 			builder.append(paramName);
 			return;
 		}
 		
-		generateCodeForType(type, builder);
+		generateCodeForType(type, symTable, builder);
 		builder.append(" ");
 		builder.append(paramName);
 	}
 
-	private void generateCodeForType(Type type, StringBuilder builder) {
+	private void generateCodeForType(Type type, SymbolTable symTable, StringBuilder builder) {
 		if (type instanceof QualType) {
 			QualType qualType = (QualType) type;
-			generateCodeForType(qualType.getUnqualifiedType(), builder);
+			generateCodeForType(qualType.getUnqualifiedType(), symTable, builder);
 			return;
 		}
 		if (type instanceof PointerType) {
 			PointerType pointerType = (PointerType) type;
-			generateCodeForType(pointerType.getPointeeType(), builder);
+			generateCodeForType(pointerType.getPointeeType(), symTable, builder);
 			builder.append("*");
 			return;
 		}
@@ -365,6 +469,17 @@ public class CLCuda {
 				builder.append(type.getCode());
 				return;
 			}
+		}
+		if (type instanceof ElaboratedType) {
+			ElaboratedType elaboratedType = (ElaboratedType) type;
+			builder.append("struct ");
+			generateCodeForType(elaboratedType.getNamedType(), symTable, builder);
+			return;
+		}
+		if (type instanceof RecordType) {
+			RecordType recordType = (RecordType) type;
+			builder.append(symTable.getMangledTypeName(recordType.getDecl().getDeclName()));
+			return;
 		}
 		// STUB
 		builder.append(type.getCode());
