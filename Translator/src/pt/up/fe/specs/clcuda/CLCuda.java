@@ -272,7 +272,7 @@ public class CLCuda {
 						localMemBuilder.append("\tsize_t ");
 						localMemBuilder.append(entry.offsetName);
 						localMemBuilder.append(" = local_mem_size;\n");
-						localMemBuilder.append("\tlocal_mem_size += desc->arg_data[");
+						localMemBuilder.append("\tlocal_mem_size += *(size_t*) desc->arg_data[");
 						localMemBuilder.append(argumentIndex);
 						localMemBuilder.append("];\n");
 						
@@ -293,7 +293,7 @@ public class CLCuda {
 				System.out.println(processedType);
 				throw new NotImplementedException(processedType.getClass());
 			}
-			kernelCallBuilder.append("\t\tCommonThreadData(desc->totalX, desc->totalY, desc->totalZ)\n");
+			kernelCallBuilder.append("\t\tCommonKernelData(desc->totalX, desc->totalY, desc->totalZ)\n");
 			kernelCallBuilder.append("\t);");
 			if (!localMemoryTable.isEmpty()) {
 				builder.append(localMemBuilder);
@@ -779,6 +779,11 @@ public class CLCuda {
 			}
 			return;
 		}
-		System.out.println("Builtin type " + type);
+		if (type instanceof TypedefType) {
+			// FIXME
+			builder.append(type.getCode());
+			return;
+		}
+		System.out.println("type " + type);
 	}
 }

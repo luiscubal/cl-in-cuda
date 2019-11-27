@@ -2,12 +2,64 @@
 #define CL_DEVICE_ASSIST_
 
 #include <device_launch_parameters.h>
+#include <stdint.h>
+#include <math.h>
 
 #define KERNEL_LAUNCHER extern "C" __declspec(dllexport)
 
-typedef unsigned int uint;
+struct CommonKernelData {
+	size_t totalX, totalY, totalZ;
 
-static inline __device__ size_t get_local_id(size_t dim) {
+	CommonKernelData(size_t totalX, size_t totalY, size_t totalZ)
+		: totalX(totalX), totalY(totalY), totalZ(totalZ)
+	{}
+};
+
+typedef uint32_t uint;
+typedef uint64_t ulong;
+typedef uint64_t cl_mem_fence_flags;
+
+static inline __device__ float clcuda_builtin_log(float x, CommonKernelData data) {
+	return logf(x);
+}
+
+static inline __device__ double clcuda_builtin_log(double x, CommonKernelData data) {
+	return log(x);
+}
+
+static inline __device__ float clcuda_builtin_exp(float x, CommonKernelData data) {
+	return expf(x);
+}
+
+static inline __device__ double clcuda_builtin_exp(double x, CommonKernelData data) {
+	return exp(x);
+}
+
+static inline __device__ float clcuda_builtin_sqrt(float x, CommonKernelData data) {
+	return sqrtf(x);
+}
+
+static inline __device__ double clcuda_builtin_sqrt(double x, CommonKernelData data) {
+	return sqrt(x);
+}
+
+static inline __device__ float clcuda_builtin_sin(float x, CommonKernelData data) {
+	return sinf(x);
+}
+
+static inline __device__ double clcuda_builtin_sin(double x, CommonKernelData data) {
+	return sin(x);
+}
+
+static inline __device__ float clcuda_builtin_cos(float x, CommonKernelData data) {
+	return cosf(x);
+}
+
+static inline __device__ double clcuda_builtin_cos(double x, CommonKernelData data) {
+	return cos(x);
+}
+
+static inline __device__ size_t clcuda_builtin_get_local_id(uint dim, CommonKernelData data) {
 	switch (dim) {
 	case 0:
 		return threadIdx.x;
@@ -20,7 +72,7 @@ static inline __device__ size_t get_local_id(size_t dim) {
 	}
 }
 
-static inline __device__ size_t get_local_size(size_t dim) {
+static inline __device__ size_t clcuda_builtin_get_local_size(uint dim, CommonKernelData data) {
 	switch (dim) {
 	case 0:
 		return blockDim.x;
@@ -33,7 +85,7 @@ static inline __device__ size_t get_local_size(size_t dim) {
 	}
 }
 
-static inline __device__ size_t get_global_id(size_t dim) {
+static inline __device__ size_t clcuda_builtin_get_global_id(uint dim, CommonKernelData data) {
 	switch (dim) {
 	case 0:
 		return blockIdx.x * blockDim.x + threadIdx.x;
@@ -46,7 +98,20 @@ static inline __device__ size_t get_global_id(size_t dim) {
 	}
 }
 
-static inline __device__ size_t get_group_id(size_t dim) {
+static inline __device__ size_t clcuda_builtin_get_global_size(uint dim, CommonKernelData data) {
+	switch (dim) {
+	case 0:
+		return data.totalX;
+	case 1:
+		return data.totalY;
+	case 2:
+		return data.totalZ;
+	default:
+		return 1;
+	}
+}
+
+static inline __device__ size_t clcuda_builtin_get_group_id(uint dim, CommonKernelData data) {
 	switch (dim) {
 	case 0:
 		return blockIdx.x;
@@ -59,7 +124,7 @@ static inline __device__ size_t get_group_id(size_t dim) {
 	}
 }
 
-static inline __device__ size_t get_num_groups(size_t dim) {
+static inline __device__ size_t clcuda_builtin_get_num_groups(uint dim, CommonKernelData data) {
 	switch (dim) {
 	case 0:
 		return gridDim.x;
@@ -70,6 +135,10 @@ static inline __device__ size_t get_num_groups(size_t dim) {
 	default:
 		return 1;
 	}
+}
+
+static inline __device__ void clcuda_builtin_barrier(cl_mem_fence_flags flags, CommonKernelData data) {
+	__syncthreads();
 }
 
 #endif

@@ -20,7 +20,7 @@ KERNEL_LAUNCHER void clcuda_launcher_modifiers(struct _cl_kernel *desc)
 		(int32_t const* __restrict__) desc->arg_data[0],
 		(int32_t const* __restrict__) desc->arg_data[1],
 		(int32_t* __restrict__) desc->arg_data[2],
-		CommonThreadData(desc->totalX, desc->totalY, desc->totalZ)
+		CommonKernelData(desc->totalX, desc->totalY, desc->totalZ)
 	);
 }
 

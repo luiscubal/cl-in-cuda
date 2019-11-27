@@ -22,7 +22,7 @@ KERNEL_LAUNCHER void clcuda_launcher_while_loop(struct _cl_kernel *desc)
 	clcuda_func_while_loop<<<num_grids, local_size>>>(
 		(int32_t*) desc->arg_data[0],
 		*(int32_t*) desc->arg_data[1],
-		CommonThreadData(desc->totalX, desc->totalY, desc->totalZ)
+		CommonKernelData(desc->totalX, desc->totalY, desc->totalZ)
 	);
 }
 

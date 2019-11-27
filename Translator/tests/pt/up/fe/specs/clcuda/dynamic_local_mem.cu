@@ -21,15 +21,15 @@ KERNEL_LAUNCHER void clcuda_launcher_dynamic_local_mem(struct _cl_kernel *desc)
 	
 	size_t local_mem_size = 0;
 	size_t clcuda_offset_A = local_mem_size;
-	local_mem_size += desc->arg_data[0];
+	local_mem_size += *(size_t*) desc->arg_data[0];
 	local_mem_size = ((local_mem_size + 7) / 8) * 8;
 	size_t clcuda_offset_B = local_mem_size;
-	local_mem_size += desc->arg_data[1];
+	local_mem_size += *(size_t*) desc->arg_data[1];
 	
 	clcuda_func_dynamic_local_mem<<<num_grids, local_size, local_mem_size>>>(
 		clcuda_offset_A,
 		clcuda_offset_B,
-		CommonThreadData(desc->totalX, desc->totalY, desc->totalZ)
+		CommonKernelData(desc->totalX, desc->totalY, desc->totalZ)
 	);
 }
 
