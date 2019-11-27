@@ -56,6 +56,14 @@ public class CLCudaTests {
 	}
 	
 	@Test
+	public void testWhileLoops() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("while_loop.cl"))),
+				readTestResource("while_loop.cu"),
+				readTestResource("while_loop.toml"));
+	}
+	
+	@Test
 	public void testForLoops() throws URISyntaxException, IOException {
 		validateProgram(
 				new CLCuda().translate(new File(getTestResource("for_loops.cl"))),

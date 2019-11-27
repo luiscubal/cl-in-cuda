@@ -1,0 +1,15 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "while_loop"
+symbol_name = "clcuda_launcher_while_loop"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "scalar"
+size = 4
+

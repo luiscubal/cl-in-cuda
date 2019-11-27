@@ -37,6 +37,7 @@ import pt.up.fe.specs.clava.ast.stmt.ForStmt;
 import pt.up.fe.specs.clava.ast.stmt.IfStmt;
 import pt.up.fe.specs.clava.ast.stmt.NullStmt;
 import pt.up.fe.specs.clava.ast.stmt.Stmt;
+import pt.up.fe.specs.clava.ast.stmt.WhileStmt;
 import pt.up.fe.specs.clava.ast.type.BuiltinType;
 import pt.up.fe.specs.clava.ast.type.ElaboratedType;
 import pt.up.fe.specs.clava.ast.type.PointerType;
@@ -258,6 +259,24 @@ public class CLCuda {
 			if (!(elseCase instanceof NullStmt)) {
 				builder.append(" else\n");
 				buildStmt(elseCase, builder, symTable, indentation);
+			}
+			return;
+		}
+		if (stmt instanceof WhileStmt) {
+			WhileStmt ifStmt = (WhileStmt) stmt;
+			Stmt thenCase = (Stmt)ifStmt.getChild(2);
+			
+			builder.append(indentation);
+			builder.append("while (");
+			buildExpr(ifStmt.getCondition(), symTable, builder);
+			builder.append(")\n");
+			if (thenCase instanceof NullStmt) {
+				builder.append(indentation);
+				builder.append("{\n");
+				builder.append(indentation);
+				builder.append("}");
+			} else {
+				buildStmt(thenCase, builder, symTable, indentation);
 			}
 			return;
 		}
