@@ -532,6 +532,7 @@ public class CLCuda {
 			generateCodeForType(cast.getType(), symTable, builder);
 			builder.append(") ");
 			mayParenthiseCastOperand((Expr)expr.getChild(0), symTable, builder);
+			return;
 		}
 		System.out.println(expr);
 	}
