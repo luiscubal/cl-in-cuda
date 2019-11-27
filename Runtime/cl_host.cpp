@@ -175,6 +175,7 @@ cl_command_queue clCreateCommandQueue(
 		*errcode_ret = CL_INVALID_DEVICE;
 		return 0;
 	}
+	*errcode_ret = CL_SUCCESS;
 	return HARDCODED_COMMAND_QUEUE_ID;
 }
 
@@ -252,6 +253,7 @@ cl_mem clCreateBuffer(
 		cudaMemcpy(ptr, host_ptr, size, cudaMemcpyHostToDevice);
 	}
 
+	*errcode_ret = CL_SUCCESS;
 	return mem;
 }
 
@@ -395,8 +397,32 @@ static cl_int buildKernel(
 				if (*type == "global_ptr") {
 					storage->arg_descriptors[storage->num_args].arg_type = ARG_TYPE_GLOBAL_MEM;
 				}
+				else if (*type == "local_ptr") {
+					storage->arg_descriptors[storage->num_args].arg_type = ARG_TYPE_LOCAL_MEM;
+					storage->arg_descriptors[storage->num_args].data.scalar_size = sizeof(size_t);
+					storage->arg_data[storage->num_args] = malloc(sizeof(size_t));
+					if (storage->arg_data == nullptr) {
+						errcode = CL_OUT_OF_HOST_MEMORY;
+						break;
+					}
+				}
+				else if (*type == "scalar") {
+					storage->arg_descriptors[storage->num_args].arg_type = ARG_TYPE_SCALAR;
+
+					auto size = arg->get_as<int>("size");
+					if (!size) {
+						errcode = CL_INVALID_BINARY;
+						break;
+					}
+					storage->arg_descriptors[storage->num_args].data.scalar_size = *size;
+					storage->arg_data[storage->num_args] = malloc(*size);
+					if (storage->arg_data == nullptr) {
+						errcode = CL_OUT_OF_HOST_MEMORY;
+						break;
+					}
+				}
 				else {
-					std::cerr << "Not implemented" << std::endl;
+					std::cerr << "Not implemented " << *type << std::endl;
 					errcode = CL_INVALID_BINARY;
 					break;
 				}
@@ -410,6 +436,9 @@ static cl_int buildKernel(
 		free(storage->symbol_name);
 		free(storage->arg_data);
 		free(storage->arg_descriptors);
+		for (int i = 0; i < storage->num_args; i++) {
+			free(storage->arg_data[i]);
+		}
 	}
 	return errcode;
 }
@@ -795,5 +824,17 @@ cl_int clEnqueueNDRangeKernel(
 	kernel->launcher(kernel);
 	cudaDeviceSynchronize();
 
+	return CL_SUCCESS;
+}
+
+cl_int clEnqueueBarrier(cl_command_queue command_queue)
+{
+	// No action needed. Async compute is not supported anyway
+	return CL_SUCCESS;
+}
+
+cl_int clFinish(cl_command_queue command_queue)
+{
+	// No action needed. Async compute is not supported anyway
 	return CL_SUCCESS;
 }

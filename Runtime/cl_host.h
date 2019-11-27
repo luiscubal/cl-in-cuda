@@ -79,6 +79,8 @@ cl_int clReleaseKernel(cl_kernel kernel);
 cl_int clReleaseProgram(cl_program program);
 cl_int clSetKernelArg(cl_kernel kernel, cl_uint arg_index, size_t arg_size, const void *arg_value);
 cl_int clEnqueueNDRangeKernel(cl_command_queue command_queue, cl_kernel kernel, cl_uint work_dim, const size_t *global_work_offset, const size_t *global_work_size, const size_t *local_work_size, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event);
+cl_int clEnqueueBarrier(cl_command_queue command_queue);
+cl_int clFinish(cl_command_queue command_queue);
 
 void* clSVMAlloc(cl_context context, cl_svm_mem_flags flags, size_t size, unsigned int alignment);
 void clSVMFree(cl_context context, void* svm_pointer);
