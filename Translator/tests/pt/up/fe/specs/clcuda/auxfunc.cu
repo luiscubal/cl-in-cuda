@@ -1,12 +1,12 @@
 #include "cl_device_assist.cuh"
 #include "cl_interface_shared.h"
 
-__device__ int clcuda_func_apply(int var_x, CommonKernelData data)
+__device__ int32_t clcuda_func_apply(int32_t var_x, CommonKernelData data)
 {
 	return var_x * 2;
 }
 
-__global__ void clcuda_func_auxfunc(int *var_A, int *var_B, CommonKernelData data)
+__global__ void clcuda_func_auxfunc(int32_t *var_A, int32_t *var_B, CommonKernelData data)
 {
 	if (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;
 	if (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;
@@ -22,8 +22,8 @@ KERNEL_LAUNCHER void clcuda_launcher_auxfunc(struct _cl_kernel *desc)
 	dim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);
 	
 	clcuda_func_auxfunc<<<num_grids, local_size>>>(
-		(int*) desc->arg_data[0],
-		(int*) desc->arg_data[1],
+		(int32_t*) desc->arg_data[0],
+		(int32_t*) desc->arg_data[1],
 		CommonThreadData(desc->totalX, desc->totalY, desc->totalZ)
 	);
 }

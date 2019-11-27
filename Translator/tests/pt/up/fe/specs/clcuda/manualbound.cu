@@ -1,7 +1,7 @@
 #include "cl_device_assist.cuh"
 #include "cl_interface_shared.h"
 
-__global__ void clcuda_func_manualbound(float *var_A, int var_N, CommonKernelData data)
+__global__ void clcuda_func_manualbound(float *var_A, int32_t var_N, CommonKernelData data)
 {
 	if (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;
 	if (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;
@@ -22,7 +22,7 @@ KERNEL_LAUNCHER void clcuda_launcher_manualbound(struct _cl_kernel *desc)
 	
 	clcuda_func_manualbound<<<num_grids, local_size>>>(
 		(float*) desc->arg_data[0],
-		*(int*) desc->arg_data[1],
+		*(int32_t*) desc->arg_data[1],
 		CommonThreadData(desc->totalX, desc->totalY, desc->totalZ)
 	);
 }

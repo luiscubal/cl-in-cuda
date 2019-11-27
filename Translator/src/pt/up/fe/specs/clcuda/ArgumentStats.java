@@ -25,7 +25,7 @@ public class ArgumentStats {
 	public static ArgumentStats fromScalar(BuiltinType type, TranslationUnit unit) {
 		ArgumentStats stats = new ArgumentStats();
 		stats.type = ArgumentType.SCALAR;
-		stats.size = type.get(BuiltinType.KIND).getBitwidth(unit.get(TranslationUnit.LANGUAGE)) / 8;
+		stats.size = TypeUtils.getTypeSize(type, unit);
 		
 		return stats;
 	}

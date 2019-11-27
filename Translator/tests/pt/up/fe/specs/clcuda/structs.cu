@@ -7,7 +7,7 @@ struct clcuda_type_array
 	size_t field_dim1;
 };
 
-__global__ void clcuda_func_structs(float *var_data, int var_dim1, CommonKernelData data)
+__global__ void clcuda_func_structs(float *var_data, int32_t var_dim1, CommonKernelData data)
 {
 	if (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;
 	if (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;
@@ -26,7 +26,7 @@ KERNEL_LAUNCHER void clcuda_launcher_structs(struct _cl_kernel *desc)
 	
 	clcuda_func_structs<<<num_grids, local_size>>>(
 		(float*) desc->arg_data[0],
-		*(int*) desc->arg_data[1],
+		*(int32_t*) desc->arg_data[1],
 		CommonThreadData(desc->totalX, desc->totalY, desc->totalZ)
 	);
 }

@@ -77,18 +77,18 @@ public class CLCuda {
 		assert app.getNumChildren() == 1 : "Expected single translation unit";
 		
 		TranslationUnit unit = (TranslationUnit) app.getChild(0);
-		SymbolTable rootTable = new SymbolTable(null);
+		SymbolTable rootTable = new SymbolTable(unit);
 		
 		for (ClavaNode child : unit.getChildren()) {
 			if (child instanceof FunctionDecl) {
-				generateCodeForFunctionDecl((FunctionDecl) child, unit, builder, rootTable, stats);
+				generateCodeForFunctionDecl((FunctionDecl) child, builder, rootTable, stats);
 				continue;
 			}
 			if (child instanceof RecordDecl) {
 				RecordDecl recordDecl = (RecordDecl) child;
 				switch (recordDecl.getTagKind()) {
 				case STRUCT:
-					generateCodeForStructDecl(recordDecl, unit, builder, rootTable, stats);
+					generateCodeForStructDecl(recordDecl, builder, rootTable, stats);
 					break;
 				default:
 					throw new NotImplementedException(recordDecl.getTagKind().toString());
@@ -106,7 +106,7 @@ public class CLCuda {
 		return builder.toString();
 	}
 	
-	private void generateCodeForStructDecl(RecordDecl struct, TranslationUnit unit, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
+	private void generateCodeForStructDecl(RecordDecl struct, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
 		String declName = struct.getDeclName();
 		String symbolName = "clcuda_type_" + declName;
 		Map<String, String> fieldTable = parentTable.addStructSymbol(declName, symbolName);
@@ -128,7 +128,7 @@ public class CLCuda {
 		builder.append("};\n\n");
 	}
 	
-	private void generateCodeForFunctionDecl(FunctionDecl func, TranslationUnit unit, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
+	private void generateCodeForFunctionDecl(FunctionDecl func, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
 		String declName = func.getDeclName();
 		String symbolName = "clcuda_func_" + declName;
 		parentTable.addSymbol(declName, symbolName);
@@ -259,7 +259,7 @@ public class CLCuda {
 						kernelCallBuilder.append(",\n");
 						
 						if (localMemoryTableIndex > 0) {
-							int size = entry.underlyingType.get(BuiltinType.KIND).getBitwidth(unit.get(TranslationUnit.LANGUAGE)) / 8;
+							int size = TypeUtils.getTypeSize((BuiltinType)entry.underlyingType, funcTable.getTranslationUnit());
 							localMemBuilder.append("\tlocal_mem_size = ((local_mem_size + ");
 							localMemBuilder.append(size - 1);
 							localMemBuilder.append(") / ");
@@ -281,7 +281,7 @@ public class CLCuda {
 					continue;
 				}
 				if (processedType instanceof BuiltinType) {
-					kernelStats.args.add(ArgumentStats.fromScalar((BuiltinType) processedType, unit));
+					kernelStats.args.add(ArgumentStats.fromScalar((BuiltinType) processedType, funcTable.getTranslationUnit()));
 					kernelCallBuilder.append("\t\t*(");
 					generateCodeForType(paramType, funcTable, kernelCallBuilder);
 					kernelCallBuilder.append("*) desc->arg_data[");
@@ -745,7 +745,40 @@ public class CLCuda {
 			builder.append(symTable.getMangledTypeName(recordType.getDecl().getDeclName()));
 			return;
 		}
-		// STUB
-		builder.append(type.getCode());
+		if (type instanceof BuiltinType) {
+			BuiltinType builtinType = (BuiltinType) type;
+			int size;
+			switch (builtinType.get(BuiltinType.KIND)) {
+			case Void:
+			case Bool:
+			case Float:
+			case Double:
+				builder.append(type.getCode());
+				return;
+			case Char8:
+			case SChar:
+			case Short:
+			case Int:
+			case Long:
+				builder.append("int");
+				size = TypeUtils.getTypeSize(builtinType, symTable.getTranslationUnit());
+				builder.append(size * 8);
+				builder.append("_t");
+				return;
+			case UChar:
+			case UShort:
+			case UInt:
+			case ULong:
+				builder.append("uint");
+				size = TypeUtils.getTypeSize(builtinType, symTable.getTranslationUnit());
+				builder.append(size * 8);
+				builder.append("_t");
+				return;
+			default:
+				System.out.println(type);
+			}
+			return;
+		}
+		System.out.println("Builtin type " + type);
 	}
 }

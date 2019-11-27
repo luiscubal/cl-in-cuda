@@ -8,7 +8,7 @@ __global__ void clcuda_func_dynamic_local_mem(size_t clcuda_offset_A, size_t clc
 	if (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;
 	
 	extern __shared__ char local_mem[];
-	int *var_A = (int*) (local_mem + clcuda_offset_A);
+	int32_t *var_A = (int32_t*) (local_mem + clcuda_offset_A);
 	double *var_B = (double*) (local_mem + clcuda_offset_B);
 	
 	var_A[clcuda_builtin_get_local_id(0, data)] = var_B[clcuda_builtin_get_local_id(0, data)];

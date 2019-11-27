@@ -3,17 +3,23 @@ package pt.up.fe.specs.clcuda;
 import java.util.HashMap;
 import java.util.Map;
 
+import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
+
 public class SymbolTable {
 	private SymbolTable parent;
-	public Map<String, String> symbols;
-	public Map<String, String> typeSymbols;
-	public Map<String, Map<String, String>> structFields;
+	public TranslationUnit translationUnit;
+	public Map<String, String> symbols = new HashMap<>();
+	public Map<String, String> typeSymbols = new HashMap<>();
+	public Map<String, Map<String, String>> structFields = new HashMap<>();
+	
+	public SymbolTable(TranslationUnit translationUnit) {
+		this.parent = null;
+		this.translationUnit = translationUnit;
+	}
 	
 	public SymbolTable(SymbolTable parent) {
 		this.parent = parent;
-		this.symbols = new HashMap<>();
-		this.typeSymbols = new HashMap<>();
-		this.structFields = new HashMap<>();
+		this.translationUnit = parent.getTranslationUnit();
 	}
 	
 	public void addSymbol(String name, String mangledName) {
@@ -60,5 +66,9 @@ public class SymbolTable {
 			return parent.getMangledFieldName(typeName, memberName);
 		}
 		return null;
+	}
+	
+	public TranslationUnit getTranslationUnit() {
+		return translationUnit;
 	}
 }
