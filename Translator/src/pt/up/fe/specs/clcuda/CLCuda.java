@@ -10,6 +10,8 @@ import org.jaxen.expr.UnaryExpr;
 import pt.up.fe.specs.clang.codeparser.CodeParser;
 import pt.up.fe.specs.clava.ClavaNode;
 import pt.up.fe.specs.clava.ast.attr.OpenCLKernelAttr;
+import pt.up.fe.specs.clava.ast.comment.InlineComment;
+import pt.up.fe.specs.clava.ast.comment.MultiLineComment;
 import pt.up.fe.specs.clava.ast.decl.Decl;
 import pt.up.fe.specs.clava.ast.decl.FieldDecl;
 import pt.up.fe.specs.clava.ast.decl.FunctionDecl;
@@ -38,6 +40,7 @@ import pt.up.fe.specs.clava.ast.stmt.IfStmt;
 import pt.up.fe.specs.clava.ast.stmt.NullStmt;
 import pt.up.fe.specs.clava.ast.stmt.Stmt;
 import pt.up.fe.specs.clava.ast.stmt.WhileStmt;
+import pt.up.fe.specs.clava.ast.stmt.WrapperStmt;
 import pt.up.fe.specs.clava.ast.type.BuiltinType;
 import pt.up.fe.specs.clava.ast.type.ElaboratedType;
 import pt.up.fe.specs.clava.ast.type.PointerType;
@@ -76,7 +79,9 @@ public class CLCuda {
 		for (ClavaNode child : unit.getChildren()) {
 			if (child instanceof FunctionDecl) {
 				generateCodeForFunctionDecl((FunctionDecl) child, unit, builder, rootTable, stats);
-			} else if (child instanceof RecordDecl) {
+				continue;
+			}
+			if (child instanceof RecordDecl) {
 				RecordDecl recordDecl = (RecordDecl) child;
 				switch (recordDecl.getTagKind()) {
 				case STRUCT:
@@ -85,9 +90,14 @@ public class CLCuda {
 				default:
 					throw new NotImplementedException(recordDecl.getTagKind().toString());
 				}
-			} else {
-				throw new NotImplementedException(child.getClass());
+				continue;
 			}
+			if (child instanceof InlineComment || child instanceof MultiLineComment) {
+				builder.append(child.getCode().replace("\r\n", "\n"));
+				builder.append("\n");
+				continue;
+			}
+			throw new NotImplementedException(child.getClass());
 		}
 		
 		return builder.toString();
@@ -239,6 +249,11 @@ public class CLCuda {
 	}
 	
 	private void buildStmt(Stmt stmt, StringBuilder builder, SymbolTable symTable, String indentation) {
+		if (stmt instanceof WrapperStmt) {
+			// Risky: ignore #pragmas, at least for now
+			builder.append(indentation);
+			return;
+		}
 		if (stmt instanceof IfStmt) {
 			IfStmt ifStmt = (IfStmt) stmt;
 			Stmt thenCase = (Stmt)ifStmt.getChild(2);

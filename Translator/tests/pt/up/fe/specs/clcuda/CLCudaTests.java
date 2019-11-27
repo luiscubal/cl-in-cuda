@@ -10,6 +10,8 @@ import java.net.URL;
 import org.junit.Assert;
 import org.junit.Test;
 
+import pt.up.fe.specs.util.SpecsSystem;
+
 public class CLCudaTests {
 	private static URL getTestResourceUrl(String resource) {
 		return CLCudaTests.class.getClassLoader().getResource("pt/up/fe/specs/clcuda/" + resource);
@@ -29,6 +31,10 @@ public class CLCudaTests {
 	private static void validateProgram(ProgramResult result, String expectedCuda, String expectedToml) {
 		Assert.assertEquals(expectedCuda, result.cuda);
 		Assert.assertEquals(expectedToml, result.toml);
+	}
+	
+	public CLCudaTests() {
+		SpecsSystem.programStandardInit();
 	}
 	
 	@Test
@@ -85,5 +91,13 @@ public class CLCudaTests {
 				new CLCuda().translate(new File(getTestResource("modifiers.cl"))),
 				readTestResource("modifiers.cu"),
 				readTestResource("modifiers.toml"));
+	}
+	
+	@Test
+	public void testComment() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("comment.cl"))),
+				readTestResource("comment.cu"),
+				readTestResource("comment.toml"));
 	}
 }

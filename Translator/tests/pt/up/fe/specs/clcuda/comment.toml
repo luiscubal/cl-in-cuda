@@ -1,0 +1,17 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "comment"
+symbol_name = "clcuda_launcher_comment"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+
