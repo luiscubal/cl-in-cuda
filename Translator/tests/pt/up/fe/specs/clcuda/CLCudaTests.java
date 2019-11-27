@@ -70,4 +70,12 @@ public class CLCudaTests {
 				readTestResource("structs.cu"),
 				readTestResource("structs.toml"));
 	}
+	
+	@Test
+	public void testModifiers() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("modifiers.cl"))),
+				readTestResource("modifiers.cu"),
+				readTestResource("modifiers.toml"));
+	}
 }

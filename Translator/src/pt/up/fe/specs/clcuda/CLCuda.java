@@ -45,6 +45,7 @@ import pt.up.fe.specs.clava.ast.type.RecordType;
 import pt.up.fe.specs.clava.ast.type.Type;
 import pt.up.fe.specs.clava.ast.type.TypedefType;
 import pt.up.fe.specs.clava.ast.type.enums.AddressSpaceQualifierV2;
+import pt.up.fe.specs.clava.ast.type.enums.C99Qualifier;
 import pt.up.fe.specs.clava.language.TagKind;
 import pt.up.fe.specs.util.exceptions.NotImplementedException;
 
@@ -169,11 +170,14 @@ public class CLCuda {
 			for (int i = 0; i < parameters.size(); i++) {
 				ParmVarDecl param = parameters.get(i);
 				Type paramType = param.getType();
-				if (paramType instanceof QualType) {
-					paramType = ((QualType) paramType).getUnqualifiedType();
+				Type processedType = paramType;
+				String qualifierPrefixes = "";
+				if (processedType instanceof QualType) {
+					QualType qualType = (QualType) paramType;
+					processedType = qualType.getUnqualifiedType();
 				}
-				if (paramType instanceof PointerType) {
-					Type pointeeType = ((PointerType) paramType).getPointeeType();
+				if (processedType instanceof PointerType) {
+					Type pointeeType = ((PointerType) processedType).getPointeeType();
 					if (pointeeType.get(QualType.ADDRESS_SPACE_QUALIFIER) == AddressSpaceQualifierV2.GLOBAL) {
 						kernelStats.args.add(ArgumentStats.fromGlobalPtr());
 						builder.append("\t\t(");
@@ -186,8 +190,8 @@ public class CLCuda {
 					}
 					continue;
 				}
-				if (paramType instanceof BuiltinType) {
-					kernelStats.args.add(ArgumentStats.fromScalar((BuiltinType) paramType, unit));
+				if (processedType instanceof BuiltinType) {
+					kernelStats.args.add(ArgumentStats.fromScalar((BuiltinType) processedType, unit));
 					builder.append("\t\t*(");
 					generateCodeForType(paramType, funcTable, builder);
 					builder.append("*) desc->arg_data[");
@@ -503,12 +507,24 @@ public class CLCuda {
 
 	private void generateVarDecl(Type type, String paramName, SymbolTable symTable, StringBuilder builder) {
 		if (type instanceof QualType) {
-			generateVarDecl(((QualType) type).getUnqualifiedType(), paramName, symTable, builder);
+			String qualifierPrefix = "";
+			for (C99Qualifier qualifier : type.get(QualType.C99_QUALIFIERS)) {
+				if (qualifier == C99Qualifier.RESTRICT || qualifier == C99Qualifier.RESTRICT_C99) {
+					qualifierPrefix = " __restrict__ ";
+				}
+			}
+			generateVarDecl(((QualType) type).getUnqualifiedType(), qualifierPrefix + paramName, symTable, builder);
+			if (type.isConst()) {
+				builder.append(" const");
+			}
 			return;
 		}
 		if (type instanceof PointerType) {
 			PointerType pointerType = (PointerType) type;
 			generateCodeForType(pointerType.getPointeeType(), symTable, builder);
+			if (pointerType.isConst()) {
+				builder.append("const");
+			}
 			builder.append(" *");
 			builder.append(paramName);
 			return;
@@ -523,6 +539,14 @@ public class CLCuda {
 		if (type instanceof QualType) {
 			QualType qualType = (QualType) type;
 			generateCodeForType(qualType.getUnqualifiedType(), symTable, builder);
+			if (qualType.isConst()) {
+				builder.append(" const");
+			}
+			for (C99Qualifier qualifier : type.get(QualType.C99_QUALIFIERS)) {
+				if (qualifier == C99Qualifier.RESTRICT || qualifier == C99Qualifier.RESTRICT_C99) {
+					builder.append(" __restrict__");
+				}
+			}
 			return;
 		}
 		if (type instanceof PointerType) {
