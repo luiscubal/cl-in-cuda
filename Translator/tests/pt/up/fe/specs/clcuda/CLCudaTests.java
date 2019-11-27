@@ -3,13 +3,17 @@ package pt.up.fe.specs.clcuda;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Arrays;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import pt.up.fe.specs.clang.codeparser.CodeParser;
+import pt.up.fe.specs.clava.ast.extra.App;
 import pt.up.fe.specs.util.SpecsSystem;
 
 public class CLCudaTests {
@@ -28,7 +32,7 @@ public class CLCudaTests {
 		}
 	}
 	
-	private static void validateProgram(ProgramResult result, String expectedCuda, String expectedToml) {
+	private static void validateProgram(ProgramResult result, String expectedCuda, String expectedToml) throws IOException {
 		Assert.assertEquals(expectedCuda, result.cuda);
 		Assert.assertEquals(expectedToml, result.toml);
 	}

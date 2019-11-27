@@ -20,6 +20,7 @@ import pt.up.fe.specs.clava.ast.decl.RecordDecl;
 import pt.up.fe.specs.clava.ast.decl.VarDecl;
 import pt.up.fe.specs.clava.ast.expr.ArraySubscriptExpr;
 import pt.up.fe.specs.clava.ast.expr.BinaryOperator;
+import pt.up.fe.specs.clava.ast.expr.CStyleCastExpr;
 import pt.up.fe.specs.clava.ast.expr.CallExpr;
 import pt.up.fe.specs.clava.ast.expr.DeclRefExpr;
 import pt.up.fe.specs.clava.ast.expr.Expr;
@@ -53,7 +54,6 @@ import pt.up.fe.specs.clava.ast.type.Type;
 import pt.up.fe.specs.clava.ast.type.TypedefType;
 import pt.up.fe.specs.clava.ast.type.enums.AddressSpaceQualifierV2;
 import pt.up.fe.specs.clava.ast.type.enums.C99Qualifier;
-import pt.up.fe.specs.clava.language.TagKind;
 import pt.up.fe.specs.util.exceptions.NotImplementedException;
 
 public class CLCuda {
@@ -526,6 +526,13 @@ public class CLCuda {
 			buildExpr((Expr)expr.getChild(0), symTable, builder);
 			return;
 		}
+		if (expr instanceof CStyleCastExpr) {
+			CStyleCastExpr cast = (CStyleCastExpr) expr;
+			builder.append("(");
+			generateCodeForType(cast.getType(), symTable, builder);
+			builder.append(") ");
+			mayParenthiseCastOperand((Expr)expr.getChild(0), symTable, builder);
+		}
 		System.out.println(expr);
 	}
 
@@ -605,6 +612,17 @@ public class CLCuda {
 	}
 	
 	private void mayParenthiseMemberBase(Expr operand, SymbolTable symTable, StringBuilder builder) {
+		boolean shouldParenthise = !isSimpleUnit(operand);
+		if (shouldParenthise) {
+			builder.append("(");
+		}
+		buildExpr(operand, symTable, builder);
+		if (shouldParenthise) {
+			builder.append(")");
+		}
+	}
+	
+	private void mayParenthiseCastOperand(Expr operand, SymbolTable symTable, StringBuilder builder) {
 		boolean shouldParenthise = !isSimpleUnit(operand);
 		if (shouldParenthise) {
 			builder.append("(");
