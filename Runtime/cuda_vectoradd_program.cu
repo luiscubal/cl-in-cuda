@@ -1,4 +1,3 @@
-#include <iostream>
 #include "cl_device_assist.cuh"
 #include "cl_interface_shared.h"
 

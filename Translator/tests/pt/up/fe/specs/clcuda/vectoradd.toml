@@ -1,0 +1,17 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "vectoradd"
+symbol_name = "clcuda_launcher_vectoradd"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+
