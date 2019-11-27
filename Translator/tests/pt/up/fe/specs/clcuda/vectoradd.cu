@@ -7,7 +7,7 @@ __global__ void clcuda_func_vectoradd(int *var_A, int *var_B, int *var_C, Common
 	if (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;
 	if (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;
 
-	size_t var_i = get_global_id(0, data);
+	size_t var_i = clcuda_builtin_get_global_id(0, data);
 	var_C[var_i] = (var_A[var_i] + var_B[var_i]);
 }
 

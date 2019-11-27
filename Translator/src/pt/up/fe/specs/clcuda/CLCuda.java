@@ -347,6 +347,7 @@ public class CLCuda {
 			String mangledName = symTable.getMangledName(name);
 			if (mangledName == null) {
 				checkSafeName(name);
+				builder.append("clcuda_builtin_");
 				builder.append(name);
 			} else {
 				builder.append(mangledName);

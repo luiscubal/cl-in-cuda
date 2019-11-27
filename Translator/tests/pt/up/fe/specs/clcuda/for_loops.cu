@@ -9,7 +9,7 @@ __global__ void clcuda_func_for_loops(int *var_A, int var_N, CommonKernelData da
 
 	for (int var_i = 0; var_i < var_N; var_i++)
 	{
-		var_A[(var_N * get_global_size(0, data)) + get_global_id(0, data)] = 1;
+		var_A[(var_N * clcuda_builtin_get_global_size(0, data)) + clcuda_builtin_get_global_id(0, data)] = 1;
 	}
 }
 

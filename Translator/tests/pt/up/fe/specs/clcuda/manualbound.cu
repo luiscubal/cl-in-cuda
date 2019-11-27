@@ -8,7 +8,7 @@ __global__ void clcuda_func_manualbound(float *var_A, int var_N, CommonKernelDat
 	if (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;
 
 	size_t var_global_id;
-	var_global_id = get_global_id(0U, data);
+	var_global_id = clcuda_builtin_get_global_id(0U, data);
 	if (var_global_id < var_N)
 	{
 		var_A[var_global_id] = 1.0;

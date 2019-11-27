@@ -7,7 +7,7 @@ __global__ void clcuda_func_while_loop(int *var_A, int var_a, CommonKernelData d
 	if (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;
 	if (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;
 
-	size_t var_i = get_global_id(0, data);
+	size_t var_i = clcuda_builtin_get_global_id(0, data);
 	while (var_A[var_i] < var_a)
 	{
 		var_A[var_i] *= 2;
