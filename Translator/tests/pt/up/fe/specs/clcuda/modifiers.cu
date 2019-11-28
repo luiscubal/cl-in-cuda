@@ -11,16 +11,24 @@ __global__ void clcuda_func_modifiers(int32_t const * __restrict__ var_A, int32_
 	var_C[var_i] = (var_A[var_i] + var_B[var_i]);
 }
 
-KERNEL_LAUNCHER void clcuda_launcher_modifiers(struct _cl_kernel *desc)
+KERNEL_LAUNCHER void clcuda_launcher_modifiers(struct _cl_kernel *desc, float *elapsedMs)
 {
 	dim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);
 	dim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);
 	
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+	
+	cudaEventRecord(start);
 	clcuda_func_modifiers<<<num_grids, local_size>>>(
 		(int32_t const* __restrict__) desc->arg_data[0],
 		(int32_t const* __restrict__) desc->arg_data[1],
 		(int32_t* __restrict__) desc->arg_data[2],
 		CommonKernelData(desc->totalX, desc->totalY, desc->totalZ)
 	);
+	cudaEventRecord(end);
+	cudaEventSynchronize(end);
+	cudaEventElapsedTime(elapsedMs, start, end);
 }
 

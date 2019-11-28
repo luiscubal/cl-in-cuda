@@ -14,7 +14,7 @@ __global__ void clcuda_func_dynamic_local_mem(size_t clcuda_offset_A, size_t clc
 	var_A[clcuda_builtin_get_local_id(0, data)] = var_B[clcuda_builtin_get_local_id(0, data)];
 }
 
-KERNEL_LAUNCHER void clcuda_launcher_dynamic_local_mem(struct _cl_kernel *desc)
+KERNEL_LAUNCHER void clcuda_launcher_dynamic_local_mem(struct _cl_kernel *desc, float *elapsedMs)
 {
 	dim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);
 	dim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);
@@ -26,10 +26,18 @@ KERNEL_LAUNCHER void clcuda_launcher_dynamic_local_mem(struct _cl_kernel *desc)
 	size_t clcuda_offset_B = local_mem_size;
 	local_mem_size += *(size_t*) desc->arg_data[1];
 	
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+	
+	cudaEventRecord(start);
 	clcuda_func_dynamic_local_mem<<<num_grids, local_size, local_mem_size>>>(
 		clcuda_offset_A,
 		clcuda_offset_B,
 		CommonKernelData(desc->totalX, desc->totalY, desc->totalZ)
 	);
+	cudaEventRecord(end);
+	cudaEventSynchronize(end);
+	cudaEventElapsedTime(elapsedMs, start, end);
 }
 

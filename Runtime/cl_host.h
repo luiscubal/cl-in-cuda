@@ -14,7 +14,20 @@ typedef int32_t cl_int;
 typedef uint32_t cl_uint;
 typedef int64_t cl_long;
 typedef uint64_t cl_ulong;
-typedef int cl_event;
+
+typedef struct _cl_event {
+	cl_ulong startNanos;
+	cl_ulong endNanos;
+	int refs;
+} _cl_event;
+
+typedef struct _cl_mem {
+	void* ptr;
+	size_t size;
+	int refs;
+} _cl_mem;
+
+typedef struct _cl_event *cl_event;
 typedef struct _cl_kernel *cl_kernel;
 
 typedef int cl_platform_id;
@@ -22,11 +35,7 @@ typedef int cl_device_id;
 typedef struct _cl_program *cl_program;
 typedef int cl_context;
 typedef int cl_command_queue;
-typedef struct {
-	void* ptr;
-	size_t size;
-	int refs;
-} *cl_mem;
+typedef struct _cl_mem *cl_mem;
 typedef cl_ulong cl_bitfield;
 typedef cl_bitfield cl_device_type;
 typedef cl_uint cl_platform_info;
@@ -36,6 +45,7 @@ typedef cl_bitfield cl_mem_flags;
 typedef cl_bitfield cl_svm_mem_flags;
 typedef cl_uint cl_program_build_info;
 typedef cl_uint cl_build_status;
+typedef cl_uint cl_profiling_info;
 typedef int cl_context_properties;
 
 #define CL_CALLBACK
@@ -81,6 +91,10 @@ cl_int clSetKernelArg(cl_kernel kernel, cl_uint arg_index, size_t arg_size, cons
 cl_int clEnqueueNDRangeKernel(cl_command_queue command_queue, cl_kernel kernel, cl_uint work_dim, const size_t *global_work_offset, const size_t *global_work_size, const size_t *local_work_size, cl_uint num_events_in_wait_list, const cl_event *event_wait_list, cl_event *event);
 cl_int clEnqueueBarrier(cl_command_queue command_queue);
 cl_int clFinish(cl_command_queue command_queue);
+cl_int clRetainEvent(cl_event event);
+cl_int clReleaseEvent(cl_event event);
+cl_int clSetEventCallback(cl_event event, cl_int command_exec_callback_type, void (CL_CALLBACK  *pfn_event_notify) (cl_event event, cl_int event_command_exec_status, void *user_data), void *user_data);
+cl_int clGetEventProfilingInfo(cl_event event, cl_profiling_info param_name, size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 void* clSVMAlloc(cl_context context, cl_svm_mem_flags flags, size_t size, unsigned int alignment);
 void clSVMFree(cl_context context, void* svm_pointer);

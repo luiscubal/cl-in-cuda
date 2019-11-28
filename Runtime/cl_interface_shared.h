@@ -9,7 +9,7 @@
 
 struct kernel_descriptor;
 
-typedef void (*kernel_launcher)(struct _cl_kernel* desc);
+typedef void (*kernel_launcher)(struct _cl_kernel* desc, float* elapsedMs);
 
 struct arg_descriptor {
 	int arg_type;
@@ -18,26 +18,24 @@ struct arg_descriptor {
 	} data;
 };
 
-struct _cl_kernel {
+typedef struct _cl_kernel {
 	char* name;
 	char* symbol_name;
 	size_t num_args;
 	arg_descriptor* arg_descriptors;
 	kernel_launcher launcher;
 
-	int gridX, gridY, gridZ;
-	int localX, localY, localZ;
-	int totalX, totalY, totalZ;
+	size_t gridX, gridY, gridZ;
+	size_t localX, localY, localZ;
+	size_t totalX, totalY, totalZ;
 	void** arg_data;
-};
+} _cl_kernel;
 
-struct _cl_program {
+typedef struct _cl_program {
 	size_t num_kernels;
 	_cl_kernel* kernels;
 	char* build_log;
 	char* build_options;
-};
-
-kernel_launcher get_launcher_by_name(const char* name);
+} _cl_program;
 
 #endif

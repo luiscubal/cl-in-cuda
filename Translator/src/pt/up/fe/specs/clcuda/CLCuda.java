@@ -210,7 +210,7 @@ public class CLCuda {
 			kernelStats.launcherSymbolName = launcherName;
 			builder.append("KERNEL_LAUNCHER void ");
 			builder.append(launcherName);
-			builder.append("(struct _cl_kernel *desc)\n");
+			builder.append("(struct _cl_kernel *desc, float *elapsedMs)\n");
 			builder.append("{\n");
 			builder.append("\tdim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);\n");
 			builder.append("\tdim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);\n");
@@ -299,8 +299,16 @@ public class CLCuda {
 				builder.append(localMemBuilder);
 				builder.append("\t\n");
 			}
+			builder.append("\tcudaEvent_t start, end;\n");
+			builder.append("\tcudaEventCreate(&start);\n");
+			builder.append("\tcudaEventCreate(&end);\n");
+			builder.append("\t\n");
+			builder.append("\tcudaEventRecord(start);\n");
 			builder.append(kernelCallBuilder);
 			builder.append("\n");
+			builder.append("\tcudaEventRecord(end);\n");
+			builder.append("\tcudaEventSynchronize(end);\n");
+			builder.append("\tcudaEventElapsedTime(elapsedMs, start, end);\n");
 			builder.append("}\n\n");
 		}
 	}

@@ -19,15 +19,23 @@ __global__ void clcuda_func_structs(float *var_data, int32_t var_dim1, CommonKer
 	var_arr.field_data[var_arr.field_dim1 - clcuda_builtin_get_global_id(0, data) - 1] = clcuda_builtin_get_global_id(0, data);
 }
 
-KERNEL_LAUNCHER void clcuda_launcher_structs(struct _cl_kernel *desc)
+KERNEL_LAUNCHER void clcuda_launcher_structs(struct _cl_kernel *desc, float *elapsedMs)
 {
 	dim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);
 	dim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);
 	
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+	
+	cudaEventRecord(start);
 	clcuda_func_structs<<<num_grids, local_size>>>(
 		(float*) desc->arg_data[0],
 		*(int32_t*) desc->arg_data[1],
 		CommonKernelData(desc->totalX, desc->totalY, desc->totalZ)
 	);
+	cudaEventRecord(end);
+	cudaEventSynchronize(end);
+	cudaEventElapsedTime(elapsedMs, start, end);
 }
 

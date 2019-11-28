@@ -8,6 +8,7 @@
 #include <sstream>
 #include "cpptoml.hpp"
 #include "cl_interface_shared.h"
+#include "os_interop.hpp"
 
 #define HAS_FLAG(bitfield, flag) (bitfield & flag)
 #define HARDCODED_PLATFORM_ID 1
@@ -176,6 +177,10 @@ cl_command_queue clCreateCommandQueue(
 		return 0;
 	}
 	*errcode_ret = CL_SUCCESS;
+
+	// Force device initialization
+	cudaFree(nullptr);
+
 	return HARDCODED_COMMAND_QUEUE_ID;
 }
 
@@ -271,6 +276,15 @@ cl_int clReleaseMemObject(
 	return CL_SUCCESS;
 }
 
+static cl_int createEvent(cl_event& evt)
+{
+	evt = (cl_event)malloc(sizeof(*evt));
+	if (evt == nullptr) {
+		return CL_OUT_OF_HOST_MEMORY;
+	}
+	return CL_SUCCESS;
+}
+
 cl_int clEnqueueReadBuffer(
 	cl_command_queue command_queue,
 	cl_mem buffer,
@@ -298,7 +312,22 @@ cl_int clEnqueueReadBuffer(
 		return CL_INVALID_VALUE;
 	}
 
+	cl_event evt = nullptr;
+	if (event != nullptr) {
+		cl_int err = createEvent(evt);
+		if (err != CL_SUCCESS) {
+			return err;
+		}
+		*event = evt;
+	}
+
+	if (evt != nullptr) {
+		evt->startNanos = measure_time_nanos();
+	}
 	cudaError err = cudaMemcpy((char*)ptr + offset, buffer->ptr, cb, cudaMemcpyDeviceToHost);
+	if (evt != nullptr) {
+		evt->endNanos = measure_time_nanos();
+	}
 	if (err == cudaErrorInvalidDevicePointer) {
 		// We've been reading from garbage
 		return CL_INVALID_MEM_OBJECT;
@@ -336,7 +365,22 @@ cl_int clEnqueueWriteBuffer(
 		return CL_INVALID_VALUE;
 	}
 
+	cl_event evt = nullptr;
+	if (event != nullptr) {
+		cl_int err = createEvent(evt);
+		if (err != CL_SUCCESS) {
+			return err;
+		}
+		*event = evt;
+	}
+
+	if (evt != nullptr) {
+		evt->startNanos = measure_time_nanos();
+	}
 	cudaError err = cudaMemcpy(buffer->ptr, (char*)ptr + offset, cb, cudaMemcpyHostToDevice);
+	if (evt != nullptr) {
+		evt->endNanos = measure_time_nanos();
+	}
 	if (err == cudaErrorInvalidDevicePointer) {
 		// We've been reading from garbage
 		return CL_INVALID_MEM_OBJECT;
@@ -799,7 +843,7 @@ cl_int clEnqueueNDRangeKernel(
 	size_t num_groups[3] = { 1, 1, 1 };
 	size_t local_sizes[3] = { 1, 1, 1 };
 	size_t total_sizes[3] = { 1, 1, 1 };
-	for (int i = 0; i < work_dim; i++) {
+	for (int i = 0; i < (int)work_dim; i++) {
 		size_t size = global_work_size[i];
 		size_t local_size = local_work_size[i];
 
@@ -812,6 +856,15 @@ cl_int clEnqueueNDRangeKernel(
 		num_groups[i] = size / local_size;
 	}
 
+	cl_event evt = nullptr;
+	if (event != nullptr) {
+		cl_int err = createEvent(evt);
+		if (err != CL_SUCCESS) {
+			return err;
+		}
+		*event = evt;
+	}
+
 	kernel->gridX = num_groups[0];
 	kernel->gridY = num_groups[1];
 	kernel->gridZ = num_groups[2];
@@ -821,20 +874,112 @@ cl_int clEnqueueNDRangeKernel(
 	kernel->totalX = total_sizes[0];
 	kernel->totalY = total_sizes[1];
 	kernel->totalZ = total_sizes[2];
-	kernel->launcher(kernel);
-	cudaDeviceSynchronize();
+	if (evt != nullptr) {
+		evt->startNanos = measure_time_nanos();
+	}
+
+	float elapsedMs;
+	kernel->launcher(kernel, &elapsedMs);
+
+	if (evt != nullptr) {
+		evt->endNanos = evt->startNanos + (uint64_t)(elapsedMs * 1e6);
+	}
 
 	return CL_SUCCESS;
 }
 
-cl_int clEnqueueBarrier(cl_command_queue command_queue)
-{
+cl_int clEnqueueBarrier(
+	cl_command_queue command_queue
+) {
 	// No action needed. Async compute is not supported anyway
 	return CL_SUCCESS;
 }
 
-cl_int clFinish(cl_command_queue command_queue)
-{
+cl_int clFinish(
+	cl_command_queue command_queue
+) {
 	// No action needed. Async compute is not supported anyway
+	return CL_SUCCESS;
+}
+
+cl_int clRetainEvent(
+	cl_event event
+) {
+	if (event == nullptr) {
+		return CL_INVALID_EVENT;
+	}
+	++event->refs;
+	return CL_SUCCESS;
+}
+
+cl_int clReleaseEvent(
+	cl_event event
+) {
+	if (event == nullptr) {
+		return CL_INVALID_EVENT;
+	}
+	
+	if (--event->refs == 0) {
+		free(event);
+	}
+	return CL_SUCCESS;
+}
+
+cl_int clSetEventCallback(
+	cl_event event,
+	cl_int command_exec_callback_type,
+	void (CL_CALLBACK  *pfn_event_notify) (cl_event event, cl_int event_command_exec_status, void *user_data),
+	void *user_data
+) {
+	if (event == nullptr) {
+		return CL_INVALID_EVENT;
+	}
+	if (pfn_event_notify == nullptr) {
+		return CL_INVALID_VALUE;
+	}
+	if (command_exec_callback_type != CL_COMPLETE) {
+		std::cerr << "TODO command_exec_callback_type " << command_exec_callback_type << std::endl;
+		return CL_INVALID_VALUE;
+	}
+
+	pfn_event_notify(event, command_exec_callback_type, user_data);
+	return CL_SUCCESS;
+}
+
+cl_int clGetEventProfilingInfo(
+	cl_event event,
+	cl_profiling_info param_name,
+	size_t param_value_size,
+	void *param_value,
+	size_t *param_value_size_ret
+) {
+	if (param_name != CL_PROFILING_COMMAND_QUEUED &&
+		param_name != CL_PROFILING_COMMAND_SUBMIT &&
+		param_name != CL_PROFILING_COMMAND_START &&
+		param_name != CL_PROFILING_COMMAND_END
+	) {
+		return CL_INVALID_VALUE;
+	}
+	if (param_value != nullptr && param_value_size < sizeof(cl_ulong)) {
+		return CL_INVALID_VALUE;
+	}
+	if (event == nullptr) {
+		return CL_INVALID_VALUE;
+	}
+	if (param_value_size_ret != nullptr) {
+		*param_value_size_ret = sizeof(cl_ulong);
+	}
+	if (param_value != nullptr) {
+		switch (param_name) {
+		case CL_PROFILING_COMMAND_START:
+		case CL_PROFILING_COMMAND_SUBMIT:
+		case CL_PROFILING_COMMAND_QUEUED:
+			*(cl_ulong*) param_value = event->startNanos;
+			break;
+		case CL_PROFILING_COMMAND_END:
+			*(cl_ulong*) param_value = event->endNanos;
+		}
+	}
+
 	return CL_SUCCESS;
 }
