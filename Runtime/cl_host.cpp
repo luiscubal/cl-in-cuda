@@ -11,10 +11,10 @@
 #include "os_interop.hpp"
 
 #define HAS_FLAG(bitfield, flag) (bitfield & flag)
-#define HARDCODED_PLATFORM_ID 1
-#define HARDCODED_DEVICE_ID 2
-#define HARDCODED_CONTEXT_ID 3
-#define HARDCODED_COMMAND_QUEUE_ID 4
+#define HARDCODED_PLATFORM_ID ((cl_platform_id) 1)
+#define HARDCODED_DEVICE_ID ((cl_device_id) 2)
+#define HARDCODED_CONTEXT_ID ((cl_context) 3)
+#define HARDCODED_COMMAND_QUEUE_ID ((cl_command_queue) 4)
 
 cl_int clGetPlatformIDs(
 	cl_uint num_entries,
@@ -130,10 +130,10 @@ cl_int clGetDeviceInfo(
 }
 
 cl_context clCreateContext(
-	cl_context_properties *properties,
+	const cl_context_properties *properties,
 	cl_uint num_devices,
 	const cl_device_id *devices,
-	void *callback(const char *errinfo, const void *private_info, size_t cb, void *user_data),
+	void (*CL_CALLBACK callback)(const char *errinfo, const void *private_info, size_t cb, void *user_data),
 	void *user_data,
 	cl_int *errcode_ret
 ) {
