@@ -115,7 +115,7 @@ int main() {
             local_result += A[i + j];
         }
         for (int j = 0; j < LOCAL_SIZE; ++j) {
-            if (out[i] != total_result) {
+            if (out[i] != local_result) {
                 printf("Error at element %d. Expected %f, got %f\n", i, local_result, out[i]);
                 return 1;
             }

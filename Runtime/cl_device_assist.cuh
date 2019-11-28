@@ -144,11 +144,11 @@ static __device__ __forceinline__ void clcuda_builtin_barrier(cl_mem_fence_flags
 static __device__ float clcuda_builtin_sub_group_reduce_add(float x, CommonKernelData data) {
 	// Assuming warps of 32 lanes
 	float acc = x;
-	acc += __shfl_down(acc, 1);
-    acc += __shfl_down(acc, 2);
-    acc += __shfl_down(acc, 4);
-    acc += __shfl_down(acc, 8);
-    acc += __shfl_down(acc, 16);
+	acc += __shfl_down_sync(FULL_MASK, acc, 1);
+    acc += __shfl_down_sync(FULL_MASK, acc, 2);
+    acc += __shfl_down_sync(FULL_MASK, acc, 4);
+    acc += __shfl_down_sync(FULL_MASK, acc, 8);
+    acc += __shfl_down_sync(FULL_MASK, acc, 16);
     return acc;
 }
 
@@ -168,16 +168,16 @@ static __device__ float clcuda_builtin_work_group_reduce_add(float x, CommonKern
 
 	size_t numThreads = blockDim.x * blockDim.y * blockDim.z;
 	size_t numWarps = numThreads / 32;
-	float total_acc;
+	float totalAcc;
 	if (warp == 0) {
 		float per_thread_acc = 0;
 		for (int i = lane; i < numWarps; i += 32) {
 			per_thread_acc += acc[i];
 		}
-		total_acc = clcuda_builtin_sub_group_reduce_add(per_thread_acc, data);
+		totalAcc = clcuda_builtin_sub_group_reduce_add(per_thread_acc, data);
 
 		if (lane == 0) {
-			acc[0] = total_acc;
+			acc[0] = totalAcc;
 		}
 	}
 
