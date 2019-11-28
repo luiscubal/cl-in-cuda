@@ -21,5 +21,6 @@ public class Program {
 		try (PrintWriter out = new PrintWriter(tomlFile)) {
 		    out.println(result.toml);
 		}
+		System.out.println("Done");
 	}
 }

@@ -96,7 +96,7 @@ int main() {
     CHECK_CODE(clCreateBuffer, errcode);
     cl_mem B_gpu = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(DATATYPE) * N, NULL, &errcode);
     CHECK_CODE(clCreateBuffer, errcode);
-    cl_mem out_gpu = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(DATATYPE) * N, NULL, &errcode);
+    cl_mem out_gpu = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(DATATYPE) * N, NULL, &errcode);
     CHECK_CODE(clCreateBuffer, errcode);
 
     CHECK(clEnqueueWriteBuffer, queue, A_gpu, CL_TRUE, 0, sizeof(DATATYPE) * N, A, 0, NULL, NULL);

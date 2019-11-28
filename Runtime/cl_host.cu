@@ -1,4 +1,4 @@
-#include "cl_host.h"
+#include "cl_host.cuh"
 #include <string.h>
 #include <stdlib.h>
 #include <cuda_runtime_api.h>
@@ -324,7 +324,7 @@ cl_int clEnqueueReadBuffer(
 	if (evt != nullptr) {
 		evt->startNanos = measure_time_nanos();
 	}
-	cudaError err = cudaMemcpy((char*)ptr + offset, buffer->ptr, cb, cudaMemcpyDeviceToHost);
+	cudaError err = cudaMemcpy(ptr, ((char*)buffer->ptr) + offset, cb, cudaMemcpyDeviceToHost);
 	if (evt != nullptr) {
 		evt->endNanos = measure_time_nanos();
 	}
@@ -333,6 +333,10 @@ cl_int clEnqueueReadBuffer(
 		return CL_INVALID_MEM_OBJECT;
 	}
 	if (err == cudaErrorInvalidValue) {
+		return CL_INVALID_VALUE;
+	}
+	if (err != cudaSuccess) {
+		fprintf(stderr, "Unrecognized cuda error at cudaMemcpy %d\n", err);
 		return CL_INVALID_VALUE;
 	}
 	return CL_SUCCESS;
@@ -808,6 +812,32 @@ cl_int clSetKernelArg(
 	abort();
 }
 
+ cl_int clSetKernelArgSVMPointer (
+	cl_kernel kernel,
+	cl_uint arg_index,
+	const void *arg_value
+) {
+	if (kernel == nullptr) {
+		return CL_INVALID_KERNEL;
+	}
+	
+	if (arg_index >= kernel->num_args) {
+		return CL_INVALID_ARG_INDEX;
+	}
+
+	if (arg_value == nullptr) {
+		return CL_INVALID_ARG_VALUE;
+	}
+
+	arg_descriptor* adesc = &(kernel->arg_descriptors[arg_index]);
+	if (adesc->arg_type != ARG_TYPE_GLOBAL_MEM) {
+		return CL_INVALID_ARG_INDEX;
+	}
+
+	kernel->arg_data[arg_index] = (void*)arg_value;
+	return CL_SUCCESS;
+}
+
 cl_int clEnqueueNDRangeKernel(
 	cl_command_queue command_queue,
 	cl_kernel kernel,
@@ -888,6 +918,108 @@ cl_int clEnqueueNDRangeKernel(
 	return CL_SUCCESS;
 }
 
+template<typename T>
+static __global__ void fill(T *buf, T pat, size_t iters) {
+	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= iters) return;
+
+	buf[i] = pat;
+}
+
+cl_int clEnqueueFillBuffer(
+	cl_command_queue command_queue,
+	cl_mem buffer,
+	const void *pattern,
+	size_t pattern_size,
+	size_t offset,
+	size_t size,
+	cl_uint num_events_in_wait_list,
+	const cl_event *event_wait_list,
+	cl_event *event
+) {
+	if (command_queue != HARDCODED_COMMAND_QUEUE_ID) {
+		return CL_INVALID_COMMAND_QUEUE;
+	}
+	if (buffer == nullptr) {
+		return CL_INVALID_MEM_OBJECT;
+	}
+	if (pattern == nullptr) {
+		return CL_INVALID_VALUE;
+	}
+	if (
+		pattern_size != 1 &&
+		pattern_size != 2 &&
+		pattern_size != 4 &&
+		pattern_size != 8 &&
+		pattern_size != 16 &&
+		pattern_size != 32 &&
+		pattern_size != 64 &&
+		pattern_size != 128
+	) {
+		return CL_INVALID_VALUE;
+	}
+	if (pattern_size > 8) {
+		fprintf(stderr, "Not yet implemented: pattern_size of %zu\n", pattern_size);
+		return CL_INVALID_VALUE;
+	}
+	if (offset % pattern_size != 0) {
+		return CL_INVALID_VALUE;
+	}
+	if (size % pattern_size != 0) {
+		return CL_INVALID_VALUE;
+	}
+	if (num_events_in_wait_list > 0 && event_wait_list == nullptr) {
+		return CL_INVALID_EVENT_WAIT_LIST;
+	}
+
+	cl_event evt = nullptr;
+	if (event != nullptr) {
+		cl_int err = createEvent(evt);
+		if (err != CL_SUCCESS) {
+			return err;
+		}
+		*event = evt;
+	}
+	if (evt != nullptr) {
+		evt->startNanos = measure_time_nanos();
+	}
+	size_t iters = size / pattern_size;
+	size_t rounded_size = ((iters + 127) / 128) * 128;
+	dim3 num_grids = dim3(rounded_size, 1, 1);
+	dim3 local_size = dim3(128, 1, 1);
+	
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+	
+	uint16_t *buf = (uint16_t*)(buffer->ptr) + offset / 2;
+	cudaEventRecord(start);
+	switch (pattern_size) {
+	case 1:
+		cudaMemset((uint8_t*)(buffer->ptr) + offset, *(const uint8_t*)pattern, size);
+		break;
+	case 2:
+		fill<uint16_t><<<num_grids, local_size>>>((uint16_t*)buf, *(const uint16_t*)pattern, iters);
+		break;
+	case 4:
+		fill<uint32_t><<<num_grids, local_size>>>((uint32_t*)buf, *(const uint32_t*)pattern, iters);
+		break;
+	case 8:
+		fill<uint64_t><<<num_grids, local_size>>>((uint64_t*)buf, *(const uint64_t*)pattern, iters);
+		break;
+	}
+	cudaEventRecord(end);
+	cudaEventSynchronize(end);
+	float elapsedMs;
+	cudaEventElapsedTime(&elapsedMs, start, end);
+
+	if (evt != nullptr) {
+		evt->endNanos = evt->startNanos + (uint64_t)(elapsedMs * 1e6);
+	}
+
+	return CL_SUCCESS;
+}
+
 cl_int clEnqueueBarrier(
 	cl_command_queue command_queue
 ) {
@@ -898,6 +1030,18 @@ cl_int clEnqueueBarrier(
 cl_int clFinish(
 	cl_command_queue command_queue
 ) {
+	// No action needed. Async compute is not supported anyway
+	return CL_SUCCESS;
+}
+
+cl_int clWaitForEvents(
+	cl_uint num_events,
+	const cl_event* event_list
+) {
+	if (num_events == 0) {
+		return CL_INVALID_VALUE;
+	}
+
 	// No action needed. Async compute is not supported anyway
 	return CL_SUCCESS;
 }

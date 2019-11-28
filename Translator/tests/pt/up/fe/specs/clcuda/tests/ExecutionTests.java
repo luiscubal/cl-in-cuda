@@ -52,7 +52,7 @@ public class ExecutionTests {
 		}
 		
 		for (File file : runtimeFile.listFiles()) {
-			if (file.getName().endsWith(".cpp")) {
+			if (file.getName().endsWith(".cpp") || file.getName().endsWith(".cu")) {
 				command.add(file.getAbsolutePath());
 			}
 		}
@@ -114,5 +114,14 @@ public class ExecutionTests {
 				Arrays.asList(
 						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.cl"))),
 				Arrays.asList("-DLOCAL_SIZE=1024"));
+	}
+
+	@Test
+	public void testFillBuffer() throws IOException, URISyntaxException {
+		runTest("fillbuffer",
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "fillbuffer/fillbuffer.c"))),
+				Collections.emptyList(),
+				Collections.emptyList());
 	}
 }
