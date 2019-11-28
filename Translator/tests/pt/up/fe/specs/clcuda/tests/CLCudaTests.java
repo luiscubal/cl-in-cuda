@@ -1,32 +1,23 @@
-package pt.up.fe.specs.clcuda;
+package pt.up.fe.specs.clcuda.tests;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
-import java.util.Arrays;
 
 import org.junit.Assert;
 import org.junit.Test;
 
-import pt.up.fe.specs.clang.codeparser.CodeParser;
-import pt.up.fe.specs.clava.ast.extra.App;
+import pt.up.fe.specs.clcuda.CLCuda;
+import pt.up.fe.specs.clcuda.ProgramResult;
 import pt.up.fe.specs.util.SpecsSystem;
 
 public class CLCudaTests {
-	private static URL getTestResourceUrl(String resource) {
-		return CLCudaTests.class.getClassLoader().getResource("pt/up/fe/specs/clcuda/" + resource);
-	}
-	
-	private static URI getTestResource(String resource) throws URISyntaxException {
-		return getTestResourceUrl(resource).toURI();
-	}
+	private static final String BASE_PATH = "pt/up/fe/specs/clcuda/tests/textual/";
 	
 	private static String readTestResource(String resource) throws URISyntaxException, IOException {
-		try (InputStream in = getTestResourceUrl(resource).openStream()) {
+		try (InputStream in = TestUtils.getTestResourceUrl(BASE_PATH + resource).openStream()) {
 			byte[] bytes = in.readAllBytes();
 			return new String(bytes, "utf-8").replace("\r\n", "\n");
 		}
@@ -35,6 +26,10 @@ public class CLCudaTests {
 	private static void validateProgram(ProgramResult result, String expectedCuda, String expectedToml) throws IOException {
 		Assert.assertEquals(expectedCuda, result.cuda);
 		Assert.assertEquals(expectedToml, result.toml);
+	}
+	
+	private static URI getTestResource(String resource) throws IOException, URISyntaxException {
+		return TestUtils.getTestResource(BASE_PATH + resource);
 	}
 	
 	public CLCudaTests() {
@@ -119,5 +114,13 @@ public class CLCudaTests {
 				new CLCuda().translate(new File(getTestResource("dynamic_local_mem.cl"))),
 				readTestResource("dynamic_local_mem.cu"),
 				readTestResource("dynamic_local_mem.toml"));
+	}
+	
+	@Test
+	public void testType() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("type.cl"))),
+				readTestResource("type.cu"),
+				readTestResource("type.toml"));
 	}
 }

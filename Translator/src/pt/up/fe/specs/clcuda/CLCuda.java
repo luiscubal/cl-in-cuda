@@ -17,6 +17,7 @@ import pt.up.fe.specs.clava.ast.decl.FieldDecl;
 import pt.up.fe.specs.clava.ast.decl.FunctionDecl;
 import pt.up.fe.specs.clava.ast.decl.ParmVarDecl;
 import pt.up.fe.specs.clava.ast.decl.RecordDecl;
+import pt.up.fe.specs.clava.ast.decl.TypedefDecl;
 import pt.up.fe.specs.clava.ast.decl.VarDecl;
 import pt.up.fe.specs.clava.ast.expr.ArraySubscriptExpr;
 import pt.up.fe.specs.clava.ast.expr.BinaryOperator;
@@ -100,6 +101,24 @@ public class CLCuda {
 				builder.append("\n");
 				continue;
 			}
+			if (child instanceof DeclStmt) {
+				DeclStmt declStmt = (DeclStmt) child;
+				for (Decl decl : declStmt.getDecls()) {
+					if (decl instanceof TypedefDecl) {
+						TypedefDecl typedefDecl = (TypedefDecl) decl;
+						String name = typedefDecl.getDeclName();
+						String mangledName = "clcuda_type_" + name;
+						rootTable.addTypeSymbol(name, mangledName);
+						
+						builder.append("typedef ");
+						generateVarDecl(typedefDecl.getType(), mangledName, rootTable, builder);
+						builder.append(";\n\n");
+					} else {
+						throw new NotImplementedException(child.getClass());
+					}
+				}
+				continue;
+			}
 			throw new NotImplementedException(child.getClass());
 		}
 		
@@ -109,7 +128,7 @@ public class CLCuda {
 	private void generateCodeForStructDecl(RecordDecl struct, StringBuilder builder, SymbolTable parentTable, ProgramStats stats) {
 		String declName = struct.getDeclName();
 		String symbolName = "clcuda_type_" + declName;
-		Map<String, String> fieldTable = parentTable.addStructSymbol(declName, symbolName);
+		Map<String, String> fieldTable = parentTable.addTypeSymbol(declName, symbolName);
 		
 		builder.append("struct ");
 		builder.append(symbolName);
@@ -685,6 +704,19 @@ public class CLCuda {
 			throw new RuntimeException("Unknown name: " + name);
 		}
 	}
+	
+	private void checkSafeTypeName(String name) {
+		switch (name) {
+		case "size_t":
+		case "uchar":
+		case "ushort":
+		case "uint":
+		case "ulong":
+			return;
+		default:
+			throw new RuntimeException("Unknown name: " + name);
+		}
+	}
 
 	private void generateVarDecl(Type type, String paramName, SymbolTable symTable, StringBuilder builder) {
 		if (type instanceof QualType) {
@@ -736,12 +768,6 @@ public class CLCuda {
 			builder.append("*");
 			return;
 		}
-		if (type instanceof TypedefType) {
-			if (type.getCode().equals("size_t")) {
-				builder.append(type.getCode());
-				return;
-			}
-		}
 		if (type instanceof ElaboratedType) {
 			ElaboratedType elaboratedType = (ElaboratedType) type;
 			builder.append("struct ");
@@ -788,8 +814,13 @@ public class CLCuda {
 			return;
 		}
 		if (type instanceof TypedefType) {
-			// FIXME
-			builder.append(type.getCode());
+			String mangledName = symTable.getMangledTypeName(type.get(TypedefType.DECL).getDeclName());
+			if (mangledName != null) {
+				builder.append(mangledName);
+			} else {
+				checkSafeTypeName(type.getCode());
+				builder.append(type.getCode());
+			}
 			return;
 		}
 		System.out.println("type " + type);

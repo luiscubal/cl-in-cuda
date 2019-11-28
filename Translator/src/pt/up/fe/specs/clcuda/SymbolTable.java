@@ -26,7 +26,7 @@ public class SymbolTable {
 		symbols.put(name, mangledName);
 	}
 	
-	public Map<String, String> addStructSymbol(String name, String mangledName) {
+	public Map<String, String> addTypeSymbol(String name, String mangledName) {
 		typeSymbols.put(name, mangledName);
 		
 		Map<String, String> fields = new HashMap<>();
