@@ -130,6 +130,12 @@ public class CLCuda {
 						continue;
 					}
 				}
+				if (unwrappedNode instanceof InlineComment || unwrappedNode instanceof MultiLineComment) {
+					builder.append(unwrappedNode.getCode().replace("\r\n", "\n"));
+					builder.append("\n");
+					continue;
+				}
+				throw new NotImplementedException(unwrappedNode.getClass());
 			}
 			System.out.println(child);
 			throw new NotImplementedException(child.getClass());

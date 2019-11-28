@@ -1,6 +1,7 @@
 #include "cl_device_assist.cuh"
 #include "cl_interface_shared.h"
 
+// After OpenCL 1.2, using this extension becomes a warning
 __global__ void clcuda_func_pragma(double *var_A, double *var_B, double *var_C, CommonKernelData data)
 {
 	if (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;
