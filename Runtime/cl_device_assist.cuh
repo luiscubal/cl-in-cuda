@@ -6,6 +6,7 @@
 #include <math.h>
 
 #define KERNEL_LAUNCHER extern "C" __declspec(dllexport)
+#define FULL_MASK 0xffffffff
 
 struct CommonKernelData {
 	size_t totalX, totalY, totalZ;
