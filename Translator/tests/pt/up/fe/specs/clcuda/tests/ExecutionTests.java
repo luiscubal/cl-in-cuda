@@ -82,4 +82,13 @@ public class ExecutionTests {
 				Arrays.asList(
 						new File(TestUtils.getTestResource(BASE_PATH + "vectoradd/vectoradd.cl"))));
 	}
+
+	@Test
+	public void testReduceAddFloat() throws IOException, URISyntaxException {
+		runTest("reduce_add_float",
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.c"))),
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.cl"))));
+	}
 }
