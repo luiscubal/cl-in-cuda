@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Assert;
@@ -21,7 +22,7 @@ import pt.up.fe.specs.util.SpecsSystem;
 public class ExecutionTests {
 	private static final String BASE_PATH = "pt/up/fe/specs/clcuda/tests/execution/";
 	
-	public void runTest(String testName, List<File> cFiles, List<File> clFiles) throws IOException {
+	public void runTest(String testName, List<File> cFiles, List<File> clFiles, List<String> extraFlags) throws IOException {
 		File containerFile = new File("").getAbsoluteFile().getParentFile();
 		File runtimeFile = new File(containerFile, "Runtime");
 		Path tempDir = Files.createTempDirectory(testName);
@@ -63,6 +64,7 @@ public class ExecutionTests {
 		command.add("-o");
 		String output = SpecsPlatforms.isWindows() ? "app.exe" : "app";
 		command.add(output);
+		command.addAll(extraFlags);
 		
 		int result = SpecsSystem.run(command, tempDir.toFile());
 		Assert.assertEquals(0, result);
@@ -80,15 +82,37 @@ public class ExecutionTests {
 				Arrays.asList(
 						new File(TestUtils.getTestResource(BASE_PATH + "vectoradd/vectoradd.c"))),
 				Arrays.asList(
-						new File(TestUtils.getTestResource(BASE_PATH + "vectoradd/vectoradd.cl"))));
+						new File(TestUtils.getTestResource(BASE_PATH + "vectoradd/vectoradd.cl"))),
+				Collections.emptyList());
 	}
 
 	@Test
-	public void testReduceAddFloat() throws IOException, URISyntaxException {
+	public void testReduceAddFloatLocalSize32() throws IOException, URISyntaxException {
 		runTest("reduce_add_float",
 				Arrays.asList(
 						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.c"))),
 				Arrays.asList(
-						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.cl"))));
+						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.cl"))),
+				Arrays.asList("-DLOCAL_SIZE=32"));
+	}
+
+	@Test
+	public void testReduceAddFloatLocalSize128() throws IOException, URISyntaxException {
+		runTest("reduce_add_float",
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.c"))),
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.cl"))),
+				Arrays.asList("-DLOCAL_SIZE=128"));
+	}
+
+	@Test
+	public void testReduceAddFloatLocalSize1024() throws IOException, URISyntaxException {
+		runTest("reduce_add_float",
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.c"))),
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "reduce_add_float/reduce_add_float.cl"))),
+				Arrays.asList("-DLOCAL_SIZE=1024"));
 	}
 }

@@ -57,8 +57,11 @@ static cl_program create_program_from_file(cl_context context, cl_device_id devi
 	return program;
 }
 
+#ifndef LOCAL_SIZE
+#error "Undefined LOCAL_SIZE constant. Use -DLOCAL_SIZE=<N>"
+#endif
+
 typedef cl_float DATATYPE;
-#define LOCAL_SIZE 64
 #define N 2048
 
 int main() {
