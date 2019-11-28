@@ -718,6 +718,8 @@ public class CLCuda {
 		case "sin":
 		case "cos":
 		case "tan":
+		case "sub_group_reduce_add":
+		case "work_group_reduce_add":
 			return;
 		default:
 			throw new RuntimeException("Unknown name: " + name);
