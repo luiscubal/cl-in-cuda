@@ -1,0 +1,17 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "pragma"
+symbol_name = "clcuda_launcher_pragma"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+
+[[kernels.args]]
+type = "global_ptr"
+

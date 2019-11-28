@@ -123,4 +123,12 @@ public class CLCudaTests {
 				readTestResource("type.cu"),
 				readTestResource("type.toml"));
 	}
+	
+	@Test
+	public void testPragma() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("pragma.cl"))),
+				readTestResource("pragma.cu"),
+				readTestResource("pragma.toml"));
+	}
 }

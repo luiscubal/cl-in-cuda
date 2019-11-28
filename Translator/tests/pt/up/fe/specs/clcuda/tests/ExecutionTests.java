@@ -1,6 +1,5 @@
 package pt.up.fe.specs.clcuda.tests;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;

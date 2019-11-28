@@ -5,8 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import org.jaxen.expr.UnaryExpr;
-
 import pt.up.fe.specs.clang.codeparser.CodeParser;
 import pt.up.fe.specs.clava.ClavaNode;
 import pt.up.fe.specs.clava.ast.attr.OpenCLKernelAttr;
@@ -34,6 +32,8 @@ import pt.up.fe.specs.clava.ast.expr.enums.BinaryOperatorKind;
 import pt.up.fe.specs.clava.ast.expr.enums.UnaryOperatorKind;
 import pt.up.fe.specs.clava.ast.extra.App;
 import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
+import pt.up.fe.specs.clava.ast.pragma.GenericPragma;
+import pt.up.fe.specs.clava.ast.pragma.Pragma;
 import pt.up.fe.specs.clava.ast.stmt.BreakStmt;
 import pt.up.fe.specs.clava.ast.stmt.CompoundStmt;
 import pt.up.fe.specs.clava.ast.stmt.ContinueStmt;
@@ -119,6 +119,19 @@ public class CLCuda {
 				}
 				continue;
 			}
+			if (child instanceof WrapperStmt) {
+				assert child.getNumChildren() == 1;
+				ClavaNode unwrappedNode = child.getChild(0);
+				if (unwrappedNode instanceof GenericPragma) {
+					GenericPragma genericPragma = (GenericPragma) unwrappedNode;
+					if (genericPragma.getName().equals("OPENCL")) {
+						String content = genericPragma.getContent();
+						System.out.println("Ignoring OpenCL pragma " + content);
+						continue;
+					}
+				}
+			}
+			System.out.println(child);
 			throw new NotImplementedException(child.getClass());
 		}
 		
