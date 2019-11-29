@@ -36,7 +36,7 @@ static cl_program create_program_from_file(cl_context context, cl_device_id devi
 	
     cl_int errcode;
 	cl_program program = clCreateProgramWithBinary(context, 1, &device, &length, (const unsigned char**) &content, NULL, &errcode);
-	CHECK_CODE(clCreateProgramWithSource, errcode);
+	CHECK_CODE(clCreateProgramWithBinary, errcode);
 	
 	errcode = clBuildProgram(program, 1, &device, options, NULL, NULL);
 	

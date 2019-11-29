@@ -26,6 +26,7 @@ public class ExecutionTests {
 		File containerFile = new File("").getAbsoluteFile().getParentFile();
 		File runtimeFile = new File(containerFile, "Runtime");
 		Path tempDir = Files.createTempDirectory(testName);
+		System.out.println("Temp dir: " + tempDir);
 		
 		List<File> generatedCudaFiles = new ArrayList<>();
 		for (File clFile : clFiles) {
@@ -83,6 +84,16 @@ public class ExecutionTests {
 						new File(TestUtils.getTestResource(BASE_PATH + "vectoradd/vectoradd.c"))),
 				Arrays.asList(
 						new File(TestUtils.getTestResource(BASE_PATH + "vectoradd/vectoradd.cl"))),
+				Collections.emptyList());
+	}
+
+	@Test
+	public void testMyGemm2() throws IOException, URISyntaxException {
+		runTest("mygemm2",
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "cnugteren/mygemm2.c"))),
+				Arrays.asList(
+						new File(TestUtils.getTestResource(BASE_PATH + "cnugteren/mygemm2.cl"))),
 				Collections.emptyList());
 	}
 

@@ -3,8 +3,12 @@
 
 typedef size_t clcuda_type_mytype;
 
-__global__ void clcuda_func_type(int32_t *var_A, float *var_B, int32_t *var_C, CommonKernelData data)
-{
+__global__ void clcuda_func_type(
+	int32_t *var_A,
+	float *var_B,
+	int32_t *var_C,
+	CommonKernelData data
+) {
 	if (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;
 	if (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;
 	if (blockIdx.z * blockDim.z + threadIdx.z >= data.totalZ) return;
@@ -13,8 +17,10 @@ __global__ void clcuda_func_type(int32_t *var_A, float *var_B, int32_t *var_C, C
 	var_C[var_i] = (var_A[var_i] + ((int32_t) var_B[var_i]));
 }
 
-KERNEL_LAUNCHER void clcuda_launcher_type(struct _cl_kernel *desc, float *elapsedMs)
-{
+KERNEL_LAUNCHER void clcuda_launcher_type(
+	struct _cl_kernel *desc,
+	float *elapsedMs
+) {
 	dim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);
 	dim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);
 	

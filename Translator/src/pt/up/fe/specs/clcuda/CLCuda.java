@@ -33,7 +33,6 @@ import pt.up.fe.specs.clava.ast.expr.enums.UnaryOperatorKind;
 import pt.up.fe.specs.clava.ast.extra.App;
 import pt.up.fe.specs.clava.ast.extra.TranslationUnit;
 import pt.up.fe.specs.clava.ast.pragma.GenericPragma;
-import pt.up.fe.specs.clava.ast.pragma.Pragma;
 import pt.up.fe.specs.clava.ast.stmt.BreakStmt;
 import pt.up.fe.specs.clava.ast.stmt.CompoundStmt;
 import pt.up.fe.specs.clava.ast.stmt.ContinueStmt;
@@ -183,7 +182,7 @@ public class CLCuda {
 		generateCodeForType(func.getReturnType(), funcTable, builder);
 		builder.append(" ");
 		builder.append(symbolName);
-		builder.append("(");
+		builder.append("(\n");
 		
 		LocalMemoryTable localMemoryTable = new LocalMemoryTable();
 		
@@ -201,18 +200,19 @@ public class CLCuda {
 				Type pointeeType = ((PointerType) processedType).getPointeeType();
 				if (isKernel && pointeeType.get(QualType.ADDRESS_SPACE_QUALIFIER) == AddressSpaceQualifierV2.LOCAL) {
 					String offsetName = "clcuda_offset_" + paramName;
-					builder.append("size_t ");
+					builder.append("\tsize_t ");
 					builder.append(offsetName);
-					builder.append(", ");
+					builder.append(",\n");
 					localMemoryTable.add(paramName, offsetName, paramType, ((QualType) pointeeType).getUnqualifiedType());
 					continue;
 				}
 			}
+			builder.append("\t");
 			generateVarDecl(paramType, "var_" + paramName, funcTable, builder);
-			builder.append(", ");
+			builder.append(",\n");
 		}
-		builder.append("CommonKernelData data");
-		builder.append(")\n{\n");
+		builder.append("\tCommonKernelData data\n");
+		builder.append(") {\n");
 		if (isKernel) {
 			builder.append("\tif (blockIdx.x * blockDim.x + threadIdx.x >= data.totalX) return;\n");
 			builder.append("\tif (blockIdx.y * blockDim.y + threadIdx.y >= data.totalY) return;\n");
@@ -248,8 +248,7 @@ public class CLCuda {
 			kernelStats.launcherSymbolName = launcherName;
 			builder.append("KERNEL_LAUNCHER void ");
 			builder.append(launcherName);
-			builder.append("(struct _cl_kernel *desc, float *elapsedMs)\n");
-			builder.append("{\n");
+			builder.append("(\n\tstruct _cl_kernel *desc,\n\tfloat *elapsedMs\n) {\n");
 			builder.append("\tdim3 num_grids = dim3(desc->gridX, desc->gridY, desc->gridZ);\n");
 			builder.append("\tdim3 local_size = dim3(desc->localX, desc->localY, desc->localZ);\n");
 			builder.append("\t\n");
@@ -297,7 +296,7 @@ public class CLCuda {
 						kernelCallBuilder.append(",\n");
 						
 						if (localMemoryTableIndex > 0) {
-							int size = TypeUtils.getTypeSize((BuiltinType)entry.underlyingType, funcTable.getTranslationUnit());
+							int size = TypeUtils.getTypeSize((BuiltinType) entry.underlyingType.desugar(), funcTable.getTranslationUnit());
 							localMemBuilder.append("\tlocal_mem_size = ((local_mem_size + ");
 							localMemBuilder.append(size - 1);
 							localMemBuilder.append(") / ");
@@ -747,10 +746,10 @@ public class CLCuda {
 					qualifierPrefix = " __restrict__ ";
 				}
 			}
-			generateVarDecl(((QualType) type).getUnqualifiedType(), qualifierPrefix + paramName, symTable, builder);
 			if (type.isConst()) {
-				builder.append(" const");
+				qualifierPrefix += "const ";
 			}
+			generateVarDecl(((QualType) type).getUnqualifiedType(), qualifierPrefix + paramName, symTable, builder);
 			return;
 		}
 		if (type instanceof PointerType) {
