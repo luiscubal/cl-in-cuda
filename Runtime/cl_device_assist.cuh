@@ -5,7 +5,11 @@
 #include <stdint.h>
 #include <math.h>
 
+#ifdef _WIN32
 #define KERNEL_LAUNCHER extern "C" __declspec(dllexport)
+#else
+#define KERNEL_LAUNCHER extern "C"
+#endif
 #define FULL_MASK 0xffffffff
 
 struct CommonKernelData {
@@ -16,6 +20,8 @@ struct CommonKernelData {
 	{}
 };
 
+typedef unsigned char uchar;
+typedef uint16_t ushort;
 typedef uint32_t uint;
 typedef uint64_t ulong;
 typedef uint64_t cl_mem_fence_flags;
