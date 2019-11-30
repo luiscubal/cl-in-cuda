@@ -11,8 +11,17 @@
 #include "os_interop.hpp"
 
 #define HAS_FLAG(bitfield, flag) (bitfield & flag)
-#define HARDCODED_PLATFORM_ID ((cl_platform_id) 1)
-#define HARDCODED_DEVICE_ID ((cl_device_id) 2)
+
+static struct _cl_platform_id {
+	const char* platform_name;
+} clcuda_platform = { "OpenCL emulator (via CUDA)" };
+
+static struct _cl_device_id {
+	const char* device_name;
+} clcuda_device { nullptr };
+
+#define HARDCODED_PLATFORM_ID (&clcuda_platform)
+#define HARDCODED_DEVICE_ID (&clcuda_device)
 #define HARDCODED_CONTEXT_ID ((cl_context) 3)
 #define HARDCODED_COMMAND_QUEUE_ID ((cl_command_queue) 4)
 
@@ -93,7 +102,7 @@ cl_int clGetPlatformInfo(
 	
 	switch (param_name) {
 	case CL_PLATFORM_NAME:
-		return getInfoFromString("OpenCL emulator (via CUDA)", param_value_size, param_value, param_value_size_ret);
+		return getInfoFromString(platform->platform_name, param_value_size, param_value, param_value_size_ret);
 	default:
 		return CL_INVALID_VALUE;
 	}
@@ -112,7 +121,14 @@ cl_int clGetDeviceInfo(
 	
 	switch (param_name) {
 	case CL_DEVICE_NAME:
-		return getInfoFromString("NVIDIA GPU", param_value_size, param_value, param_value_size_ret);
+		if (device->device_name == nullptr) {
+			int device_id;
+			cudaGetDevice(&device_id);
+			cudaDeviceProp prop;
+			cudaGetDeviceProperties(&prop, device_id);
+			device->device_name = prop.name;
+		}
+		return getInfoFromString(device->device_name, param_value_size, param_value, param_value_size_ret);
 	case CL_DEVICE_TYPE:
 		if (param_value_size_ret != nullptr) {
 			*param_value_size_ret = sizeof(cl_device_type);

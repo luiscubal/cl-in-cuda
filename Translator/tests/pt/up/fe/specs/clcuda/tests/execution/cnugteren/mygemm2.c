@@ -105,15 +105,11 @@ int main() {
     cl_mem out2_gpu = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(DATATYPE) * N * N, NULL, &errcode);
     CHECK_CODE(clCreateBuffer, errcode);
 
-	printf("Before writes\n");
-
     CHECK(clEnqueueWriteBuffer, queue, A_gpu, CL_TRUE, 0, sizeof(DATATYPE) * N * N, A, 0, NULL, NULL);
     CHECK(clEnqueueWriteBuffer, queue, B_gpu, CL_TRUE, 0, sizeof(DATATYPE) * N * N, B, 0, NULL, NULL);
 
     size_t local_work_size[] = { LOCAL_SIZE_X, LOCAL_SIZE_Y };
     size_t global_work_size[] = { N, N };
-
-	printf("Before kernel\n");
 
 	cl_int size = N;
     CHECK(clSetKernelArg, mygemm1, 0, sizeof(cl_int), (cl_int*) &size);
@@ -135,8 +131,6 @@ int main() {
     CHECK(clSetKernelArg, mygemm2, 7, sizeof(DATATYPE) * LOCAL_SIZE_X * LOCAL_SIZE_Y, NULL);
     CHECK(clEnqueueNDRangeKernel, queue, mygemm2, 2, NULL, global_work_size, local_work_size, 0, NULL, NULL);
     CHECK(clFinish, queue);
-
-	printf("After kernel\n");
 	
     CHECK(clEnqueueReadBuffer, queue, out1_gpu, CL_TRUE, 0, sizeof(DATATYPE) * N * N, out1, 0, NULL, NULL);
     CHECK(clEnqueueReadBuffer, queue, out2_gpu, CL_TRUE, 0, sizeof(DATATYPE) * N * N, out2, 0, NULL, NULL);
