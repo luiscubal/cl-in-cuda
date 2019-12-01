@@ -1,0 +1,8 @@
+[program]
+build_log = ""
+build_options = ""
+
+[[kernels]]
+name = "multidecl"
+symbol_name = "clcuda_launcher_multidecl"
+

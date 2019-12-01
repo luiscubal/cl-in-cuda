@@ -350,36 +350,6 @@ public class CLCuda {
 		}
 	}
 	
-	private void buildUnseparatedStmt(Stmt stmt, StringBuilder builder, SymbolTable symTable, String indentation) {
-		if (stmt instanceof DeclStmt) {
-			DeclStmt declStmt = (DeclStmt) stmt;
-			
-			for (Decl decl : declStmt.getDecls()) {
-				VarDecl varDecl = (VarDecl) decl;
-				
-				String name = varDecl.getDeclName();
-				String mangledName = "var_" + name;
-				symTable.addSymbol(name, mangledName);
-				
-				builder.append(indentation);
-				generateVarDecl(varDecl.getType(), mangledName, symTable, builder);
-				
-				if (varDecl.getNumChildren() > 0) {
-					builder.append(" = ");
-					buildExpr((Expr) varDecl.getChild(0), symTable, builder);
-				}
-			}
-			return;
-		}
-		if (stmt instanceof ExprStmt) {
-			builder.append(indentation);
-			buildExpr(((ExprStmt) stmt).getExpr(), symTable, builder);
-			return;
-		}
-
-		throw new NotImplementedException(stmt.getClass());
-	}
-	
 	private void buildStmt(Stmt stmt, StringBuilder builder, SymbolTable symTable, String indentation) {
 		if (stmt instanceof WrapperStmt) {
 			// Risky: ignore #pragmas, at least for now
@@ -438,26 +408,63 @@ public class CLCuda {
 		}
 		if (stmt instanceof ForStmt) {
 			ForStmt forStmt = (ForStmt) stmt;
-			builder.append(indentation);
-			builder.append("for (");
-			SymbolTable forTable = new SymbolTable(symTable);
-			if (forStmt.getInit().isPresent()) {
-				Stmt init = forStmt.getInit().get();
-				buildUnseparatedStmt(init, builder, forTable, "");
+			
+			Stmt initStmt = forStmt.getInit().orElse(null);
+			boolean blockFor = false;
+			String inIndentation = indentation;
+			if (initStmt != null && initStmt instanceof DeclStmt) {
+				DeclStmt declStmt = (DeclStmt) initStmt;
+				if (declStmt.getDecls().size() > 1) {
+					builder.append(indentation);
+					builder.append("{\n");
+					buildStmt(declStmt, builder, symTable, indentation + "\t");
+					builder.append("\n");
+					builder.append(indentation);
+					builder.append("\tfor (");
+					
+					inIndentation += "\t";
+					blockFor = true;
+					initStmt = null;
+				}
 			}
-			builder.append("; ");
+			if (!blockFor) {
+				builder.append(indentation);
+				builder.append("for (");
+			}
+			
+			SymbolTable forTable = new SymbolTable(symTable);
+			if (initStmt != null) {
+				buildStmt(initStmt, builder, forTable, "");
+			} else {
+				builder.append(";");
+			}
+			builder.append(" ");
 			if (forStmt.getCond().isPresent()) {
 				Stmt cond = forStmt.getCond().get();
-				buildUnseparatedStmt(cond, builder, forTable, "");
+				buildStmt(cond, builder, forTable, "");
+			} else {
+				builder.append(";");
 			}
-			builder.append(";");
+			builder.append(" ");
 			if (forStmt.getInc().isPresent()) {
 				Stmt inc = forStmt.getInc().get();
-				builder.append(" ");
-				buildUnseparatedStmt(inc, builder, forTable, "");
+				if (inc instanceof NullStmt) {
+					// No action needed
+				} else if (inc instanceof ExprStmt) {
+					buildExpr(((ExprStmt) inc).getExpr(), forTable, builder);
+				} else {
+					throw new NotImplementedException(inc.getClass());
+				}
 			}
 			builder.append(")\n");
-			buildStmt(forStmt.getBody(), builder, forTable, indentation);
+			buildStmt(forStmt.getBody(), builder, forTable, inIndentation);
+			
+			if (blockFor) {
+				builder.append("\n");
+				builder.append(indentation);
+				builder.append("}");
+			}
+			
 			return;
 		}
 		if (stmt instanceof ReturnStmt) {
@@ -482,8 +489,38 @@ public class CLCuda {
 			builder.append("continue;");
 			return;
 		}
-		buildUnseparatedStmt(stmt, builder, symTable, indentation);
-		builder.append(";");
+		if (stmt instanceof DeclStmt) {
+			DeclStmt declStmt = (DeclStmt) stmt;
+			
+			List<Decl> decls = declStmt.getDecls();
+			for (int i = 0; i < decls.size(); i++) {
+				Decl decl = decls.get(i);
+				VarDecl varDecl = (VarDecl) decl;
+				
+				String name = varDecl.getDeclName();
+				String mangledName = "var_" + name;
+				symTable.addSymbol(name, mangledName);
+				
+				builder.append(indentation);
+				generateVarDecl(varDecl.getType(), mangledName, symTable, builder);
+				
+				if (varDecl.getNumChildren() > 0) {
+					builder.append(" = ");
+					buildExpr((Expr) varDecl.getChild(0), symTable, builder);
+				}
+				builder.append(";");
+				if (i != decls.size() - 1) {
+					builder.append("\n");
+				}
+			}
+			return;
+		}
+		if (stmt instanceof ExprStmt) {
+			builder.append(indentation);
+			buildExpr(((ExprStmt) stmt).getExpr(), symTable, builder);
+			builder.append(";");
+			return;
+		}
 	}
 	
 	private void buildBody(CompoundStmt block, StringBuilder builder, SymbolTable symTable, String indentation) {

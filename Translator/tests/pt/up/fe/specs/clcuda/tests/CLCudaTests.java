@@ -131,4 +131,12 @@ public class CLCudaTests {
 				readTestResource("pragma.cu"),
 				readTestResource("pragma.toml"));
 	}
+	
+	@Test
+	public void testMultiDecl() throws URISyntaxException, IOException {
+		validateProgram(
+				new CLCuda().translate(new File(getTestResource("multidecl.cl"))),
+				readTestResource("multidecl.cu"),
+				readTestResource("multidecl.toml"));
+	}
 }
